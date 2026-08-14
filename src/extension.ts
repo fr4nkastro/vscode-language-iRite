@@ -17,6 +17,19 @@ import cp = require("child_process");
 var opener = require("opener");
 var iRiteChannel = vscode.window.createOutputChannel("iRite Information");
 
+// The iRite build engine (Revolution's iRite_preprocessor.exe) only ships for Windows.
+// On Linux/macOS we run it through Wine instead of exec'ing the .exe directly.
+function engineInvocation(enginePath: string, args: string[]): { command: string; args: string[] } {
+  if (process.platform === "win32") {
+    return { command: enginePath, args };
+  }
+  return { command: "wine", args: [enginePath, ...args] };
+}
+
+function isWineMissing(error: cp.ExecFileException): boolean {
+  return process.platform !== "win32" && error.code === "ENOENT";
+}
+
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
@@ -132,13 +145,16 @@ export function activate(context: vscode.ExtensionContext) {
                 let filepath = openTextDoc.fileName;
                 iRiteChannel.appendLine("Building: " + filepath);
 
-                var path = enginePath;
+                let invocation = engineInvocation(enginePath, [filepath, compilerPath, "build"]);
 
                 cp.execFile(
-                  path,
-                  [filepath, compilerPath, "build"],
+                  invocation.command,
+                  invocation.args,
                   function (error, data, stderr) {
                     if (error != null) {
+                      if (isWineMissing(error)) {
+                        iRiteChannel.appendLine("Compile Function ERROR: 'wine' was not found. Install Wine to run the iRite compiler on Linux/macOS (e.g. `sudo apt install wine`).");
+                      }
                       iRiteChannel.appendLine("Compile Function ERROR: " + error + "  stderr:" + stderr + "|");
                       console.log(error);
                       console.log(stderr);
@@ -214,13 +230,16 @@ export function activate(context: vscode.ExtensionContext) {
                 "\n"
             );
             let filepath = textEditor.document.fileName;
-            var path = enginePath;
+            let invocation = engineInvocation(enginePath, [filepath, compilerPath, "deploy"]);
 
-            cp.execFile(path, [filepath, compilerPath, "deploy"], function (
+            cp.execFile(invocation.command, invocation.args, function (
               error,
               data,
               stderr
             ) {
+              if (error != null && isWineMissing(error)) {
+                iRiteChannel.appendLine("Deploy Function ERROR: 'wine' was not found. Install Wine to run the iRite compiler on Linux/macOS (e.g. `sudo apt install wine`).");
+              }
               if (stderr != null) {
                 console.log(error);
                 console.log(stderr);

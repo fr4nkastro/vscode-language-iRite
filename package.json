@@ -119,21 +119,21 @@
 				"irite.build.enginePath": {
 					"type": "string",
 					"default": "C:\\Program Files (x86)\\Rice Lake Weighing Systems\\Revolution\\iRite Editor\\iRite_preprocessor.exe",
-					"description": "Indicates the build engine app path"
+					"description": "Path to iRite_preprocessor.exe. On Linux/macOS, point this to the .exe as installed inside your Wine prefix (e.g. ~/.wine/drive_c/Program Files (x86)/...); the extension runs it via `wine` automatically."
 				},
 				"irite.build.compilerPath": {
 					"type": "string",
 					"default": "C:\\Program Files (x86)\\Rice Lake Weighing Systems\\Revolution\\iRite Editor\\Compilers",
-					"description": "Indicates the compilers path"
+					"description": "Path to the Compilers folder, as seen by the engine (Windows-style path, even under Wine on Linux/macOS)"
 				}
 			}
 		}
 	},
 	"scripts": {
-		"vscode:prepublish": "webpack --mode production",
-		"compile": "webpack --mode none",
+		"vscode:prepublish": "cross-env NODE_OPTIONS=--openssl-legacy-provider webpack --mode production",
+		"compile": "cross-env NODE_OPTIONS=--openssl-legacy-provider webpack --mode none",
 		"postinstall": "node ./node_modules/vscode/bin/install",
-		"watch": "webpack --mode none --watch",
+		"watch": "cross-env NODE_OPTIONS=--openssl-legacy-provider webpack --mode none --watch",
 		"test-compile": "tsc -p ./"
 	},
 	"dependencies": {
@@ -152,6 +152,7 @@
 		"thenable": "^1.0.0"
 	},
 	"devDependencies": {
+		"cross-env": "^10.1.0",
 		"event-stream": ">=3.3.4",
 		"snapdragon": "^0.12.1",
 		"ts-loader": "^8.2.0",
