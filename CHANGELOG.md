@@ -1,6 +1,10 @@
 ChangeLog
 =========
 
+#### Unreleased
+- Toolchain: VS Code ^1.85, TypeScript 5, esbuild bundle, vitest tests; removed unused dependencies and the dead formatter.
+- Build/deploy commands now show an error instead of failing silently when no file is open.
+
 #### 2.12.1
 - Security updates. 
 

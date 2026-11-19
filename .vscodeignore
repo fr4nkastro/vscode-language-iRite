@@ -1,12 +1,25 @@
 .vscode/**
-typings/**
+.atl/**
+src/**
+test/**
+odd/**
+out/**
+node_modules/**
 issues/**
+typings/**
+VSIX old/**
 **/*.ts
 **/*.map
+**/*.vsix
+**/*.bat
 .gitignore
+.eslintrc.json
 tsconfig.json
-out/
-src/
-webpack.config.js
+esbuild.mjs
+vitest.config.*
+AGENTS.md
+Comment.txt
+Checklist to Publish.txt
+_config.yml
 npm-debug.log
-node_modules
+.codegraph/**

@@ -1,16 +1,14 @@
 {
 	"compilerOptions": {
 		"module": "commonjs",
-		"target": "es2015",
-		"outDir": "out/src",
-		"lib": [
-			"es2015"
-		],
-		"sourceMap": true,
-		"declaration": true
+		"target": "es2022",
+		"lib": ["es2022"],
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"noEmit": true,
+		"types": ["node", "vscode"]
 	},
-	"exclude": [
-		"./node_modules",
-		"./out/src"
-	]
+	"include": ["src/**/*.ts", "test/**/*.ts"]
 }
