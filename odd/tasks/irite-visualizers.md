@@ -13,7 +13,7 @@ Delivery strategy: `ask-on-risk`. Forecast ~2500 authored lines → chained slic
 - S7 — Existing commands `irite.build` (F7) and `irite.deploy` (F8) keep their current behavior and settings.
 
 ## Tasks
-- [ ] T1 — F0 toolchain: engine ^1.85, `@types/vscode`, TS 5, esbuild, vitest, drop dead deps/`build.ts`, split `extension.ts` (S7). Route: inline. Risk: item 5. Commit: —
+- [x] T1 — F0 toolchain: engine ^1.85, `@types/vscode`, TS 5, esbuild, vitest, drop dead deps/`build.ts`, split `extension.ts` (S7). Route: inline. Risk: item 5. Commit: 8814c82 (lockfile) + f1aafd9
 - [ ] T2 — F1 iRite parser → project model (includes, databases, enums, constants, records, procedures/handlers, call sites) with tests (S1-S3). Route: worker (parallel with T3). Commit: —
 - [ ] T3 — `.rev` reader → model (header, Config KV, `WDGT`, `DB.SCHEMA`/`DB.ALIAS`, aliases) with tests (S4, S6). Route: worker (parallel with T2). Commit: —
 - [ ] T4 — Screen preview webview: `iRite: Preview Screens` renders each screen from `.rev` + `sdimages/`, widget ↔ code cross-reference (S4). Route: inline. Commit: —
@@ -28,3 +28,4 @@ Delivery strategy: `ask-on-risk`. Forecast ~2500 authored lines → chained slic
 - L4 (evidence): DOLE `main.rev` is XML; 179 `WDGT#` lines verified by grep (types 4:93, 7:37, 10:31, 3:9, 1:7, 6:2); `DB.SCHEMA#1=1000,0,IdPlate,7,15,...`.
 - L5 (user): "procede" → create this document and start T1.
 - L6 (evidence): `Release.bat` contains a pre-existing hard-coded credential; reported to user, out of scope.
+- L7 (evidence T1): typecheck, vitest 4/4, esbuild bundle, vsce ls, activate smoke (2 commands) pass; gentle-ai-verify PASS S7. Native review of whole T1 stopped lens_context_budget_exceeded (lockfile); split lockfile into 8814c82, code commit f1aafd9 reviewed: approved, burned (lineage review-bc68b3618c278900). Advisories: R1-001 workspace-configurable enginePath (pre-existing), R3-001 build/deploy orchestration untested. Slice boundary: T1 = slice 1.
