@@ -14,8 +14,8 @@ Delivery strategy: `ask-on-risk`. Forecast ~2500 authored lines → chained slic
 
 ## Tasks
 - [x] T1 — F0 toolchain: engine ^1.85, `@types/vscode`, TS 5, esbuild, vitest, drop dead deps/`build.ts`, split `extension.ts` (S7). Route: inline. Risk: item 5. Commit: 8814c82 (lockfile) + f1aafd9
-- [ ] T2 — F1 iRite parser → project model (includes, databases, enums, constants, records, procedures/handlers, call sites) with tests (S1-S3). Route: worker (parallel with T3). Commit: —
-- [ ] T3 — `.rev` reader → model (header, Config KV, `WDGT`, `DB.SCHEMA`/`DB.ALIAS`, aliases) with tests (S4, S6). Route: worker (parallel with T2). Commit: —
+- [x] T2 — F1 iRite parser → project model (includes, databases, enums, constants, records, procedures/handlers, call sites) with tests (S1-S3). Route: worker (parallel with T3). Commit: c88df6d
+- [x] T3 — `.rev` reader → model (header, Config KV, `WDGT`, `DB.SCHEMA`/`DB.ALIAS`, aliases) with tests (S4, S6). Route: worker (parallel with T2). Commit: a17bd05
 - [ ] T4 — Screen preview webview: `iRite: Preview Screens` renders each screen from `.rev` + `sdimages/`, widget ↔ code cross-reference (S4). Route: inline. Commit: —
 - [ ] T5 — ERD webview from database declarations / `DB.SCHEMA` (S2). Commit: —
 - [ ] T6 — SFC/Grafcet webview from the Petri FSM (S3). Commit: —
@@ -29,3 +29,4 @@ Delivery strategy: `ask-on-risk`. Forecast ~2500 authored lines → chained slic
 - L5 (user): "procede" → create this document and start T1.
 - L6 (evidence): `Release.bat` contains a pre-existing hard-coded credential; reported to user, out of scope.
 - L7 (evidence T1): typecheck, vitest 4/4, esbuild bundle, vsce ls, activate smoke (2 commands) pass; gentle-ai-verify PASS S7. Native review of whole T1 stopped lens_context_budget_exceeded (lockfile); split lockfile into 8814c82, code commit f1aafd9 reviewed: approved, burned (lineage review-bc68b3618c278900). Advisories: R1-001 workspace-configurable enginePath (pre-existing), R3-001 build/deploy orchestration untested. Slice boundary: T1 = slice 1.
+- L8 (evidence T2/T3): typecheck clean, vitest 44/44. DOLE smoke: parser 35 files, 6 DBs, 9 enums, 201 routines, 912 calls, 0 diagnostics; rev reader 179 widgets (0 unknown), 15 screens, 6 DBs, 5/5 widget ids match main.iri. Assess d43ac8d..a17bd05: medium, not due (under_budget); pending review boundary d43ac8d.
