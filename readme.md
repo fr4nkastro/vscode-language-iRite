@@ -59,6 +59,32 @@ build engine through [Wine](https://www.winehq.org/) instead:
     Linux, filesystem paths are case-sensitive — make sure the casing
     matches the files on disk exactly.
 
+### Screen preview
+
+Run **iRite: Preview Screens** from the Command Palette, or right-click a
+`.rev` file in the explorer (or use the editor-title button on a `.rev`).
+Without a `.rev` argument the extension looks for one next to the active
+file (walking upwards) or in the workspace.
+
+It shows every 1280 screen of the project (widgets from the `.rev`, images
+from `sdimages/`), a screen selector and an "All screens" thumbnail grid.
+Hover or click a widget to see its id, type, alias, geometry, raw fields and
+the code (`main.src` and its `#include`s) that references its alias; click a
+reference to open it. The panel refreshes when the `.rev` or sources change.
+
+Limitations:
+
+-   Read-only: the `.rev` and sources are never modified.
+-   Screen size is assumed to be 800x388 px (usable area); the real panel
+    may include a fixed header.
+-   Paint order is assumed to be widget id ascending.
+-   Some `.rev` fields are still unknown (e.g. label alignment); unknown
+    widget types are drawn as hatched boxes.
+-   Built-in images (`local://N.png`) and missing files are drawn as dashed
+    placeholders.
+-   Scales show a sample weight; screen names are not stored in the `.rev`,
+    so screens are identified by number.
+
 ### irite.settings.json
 
 Defaults are established on build, but must be modified for which

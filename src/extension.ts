@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { checkRevolutionInstalled, registerEngineCommands } from "./commands/engine";
+import { registerPreviewCommands } from "./commands/previewScreens";
 
 export function activate(context: vscode.ExtensionContext): void {
   const channel = vscode.window.createOutputChannel("iRite Information");
@@ -7,6 +8,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   checkRevolutionInstalled();
   registerEngineCommands(context, channel);
+  registerPreviewCommands(context);
 }
 
 export function deactivate(): void {

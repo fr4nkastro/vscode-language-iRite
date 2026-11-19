@@ -75,6 +75,18 @@
 					"when": "resourceLangId == irite",
 					"command": "irite.deploy",
 					"group": "navigation"
+				},
+				{
+					"when": "resourceExtname =~ /\\.rev$/i",
+					"command": "irite.previewScreens",
+					"group": "navigation"
+				}
+			],
+			"explorer/context": [
+				{
+					"when": "resourceExtname =~ /\\.rev$/i",
+					"command": "irite.previewScreens",
+					"group": "navigation"
 				}
 			]
 		},
@@ -101,6 +113,11 @@
 				"command": "irite.deploy",
 				"title": "iRite: Deploy",
 				"description": "Deploy to Indicator"
+			},
+			{
+				"command": "irite.previewScreens",
+				"title": "iRite: Preview Screens",
+				"description": "Preview the 1280 screens of a Revolution .rev file (read-only)"
 			}
 		],
 		"configuration": {

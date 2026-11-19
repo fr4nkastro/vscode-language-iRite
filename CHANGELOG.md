@@ -2,6 +2,7 @@ ChangeLog
 =========
 
 #### Unreleased
+- New command `iRite: Preview Screens` (also in the explorer and editor-title menus of `.rev` files): read-only webview of every 1280 screen with a widget inspector and links to the code that references each widget.
 - Toolchain: VS Code ^1.85, TypeScript 5, esbuild bundle, vitest tests; removed unused dependencies and the dead formatter.
 - Build/deploy commands now show an error instead of failing silently when no file is open.
 
