@@ -1,0 +1,60 @@
+procedure CmdSetTransition(iMachineId: integer; iScaleId: integer; CurrentTransition: TRANSITIONS);
+    begin
+        SetTransition(iMachineId, iScaleId, CurrentTransition);
+    end;
+
+procedure HandlerStates(iMachineId: integer; iScaleId: integer);
+    begin
+        if GetState(iMachineId, iScaleId) = Standby then
+            CmdStandby(iMachineId, iScaleId);
+        elsif GetState(iMachineId, iScaleId) = PlateRequest then
+            CmdPlateRequest(iMachineId, iScaleId);
+        else
+            DisplayStatus("No action -- ignored");
+        end if;
+    end;
+
+procedure HandlerTransitions(iMachineId: integer; iScaleId: integer);
+    CurrentTransition: TRANSITIONS;
+    begin
+        CurrentTransition := GetTransition(iMachineId, iScaleId);
+        if CurrentTransition = Start then
+            SetState(iMachineId, iScaleId, PlateRequest);
+        elsif CurrentTransition = Clear then
+            SetState(iMachineId, iScaleId, Standby);
+        elsif CurrentTransition = Finish then
+            SetState(iMachineId, iScaleId, Finished);
+        end if;
+        HandlerStates(iMachineId, iScaleId);
+    end;
+
+procedure CmdStandby(iMachineId: integer; iScaleId: integer);
+    begin
+        initMachines;
+        SetLabelText(lbStat, "Idle");
+    end;
+
+procedure CmdPlateRequest(iMachineId: integer; iScaleId: integer);
+    begin
+        if GetWeight(iScaleId) > 10 then
+            if PlateOk(iScaleId) then
+                CmdSetTransition(iMachineId, iScaleId, Finish);
+            else
+                CmdSetTransition(iMachineId, iScaleId, Clear);
+            end if;
+        elsif GetWeight(iScaleId) < 0 then
+            CmdSetTransition(iMachineId, iScaleId, Start);
+        end if;
+    end;
+
+function PlateOk(iScaleId: integer): boolean;
+    begin
+        return GetWeight(iScaleId) > 5;
+    end;
+
+procedure initMachines;
+    begin
+        while PlateOk(1) loop
+            Beep;
+        end loop;
+    end;

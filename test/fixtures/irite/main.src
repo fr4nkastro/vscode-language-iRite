@@ -1,0 +1,10 @@
+program main;
+
+--Generated
+#include main.iri
+--#include src\disabled.iri
+-- Types
+#include src\petri\types.iri
+#include src\petri\handler.iri
+#include src\missing.iri
+#include src\ui.iri
