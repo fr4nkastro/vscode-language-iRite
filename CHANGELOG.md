@@ -2,6 +2,8 @@ ChangeLog
 =========
 
 #### Unreleased
+- New command `iRite: Show Database Diagram`: ERD of the iRite databases merged with the `.rev` schema, with drift diagnostics and inferred relations.
+- New command `iRite: Show Sequence Diagram (SFC)`: Grafcet-style diagram derived from the STATES/TRANSITIONS Petri state machine, with settings `irite.sfc.statesEnum`, `irite.sfc.transitionsEnum`, `irite.sfc.initialStep`.
 - New command `iRite: Preview Screens` (also in the explorer and editor-title menus of `.rev` files): read-only webview of every 1280 screen with a widget inspector and links to the code that references each widget.
 - Toolchain: VS Code ^1.85, TypeScript 5, esbuild bundle, vitest tests; removed unused dependencies and the dead formatter.
 - Build/deploy commands now show an error instead of failing silently when no file is open.

@@ -118,6 +118,16 @@
 				"command": "irite.previewScreens",
 				"title": "iRite: Preview Screens",
 				"description": "Preview the 1280 screens of a Revolution .rev file (read-only)"
+			},
+			{
+				"command": "irite.showErd",
+				"title": "iRite: Show Database Diagram",
+				"description": "Entity-relationship diagram of the iRite databases and the .rev schema (read-only)"
+			},
+			{
+				"command": "irite.showSfc",
+				"title": "iRite: Show Sequence Diagram (SFC)",
+				"description": "Grafcet-style diagram of the STATES/TRANSITIONS state machine (read-only)"
 			}
 		],
 		"configuration": {
@@ -142,6 +152,21 @@
 					"type": "string",
 					"default": "C:\\Program Files (x86)\\Rice Lake Weighing Systems\\Revolution\\iRite Editor\\Compilers",
 					"description": "Path to the Compilers folder, as seen by the engine (Windows-style path, even under Wine on Linux/macOS)"
+				},
+				"irite.sfc.statesEnum": {
+					"type": "string",
+					"default": "",
+					"description": "Name of the enum holding the SFC steps. Empty = STATES."
+				},
+				"irite.sfc.transitionsEnum": {
+					"type": "string",
+					"default": "",
+					"description": "Name of the enum holding the SFC transitions. Empty = TRANSITIONS."
+				},
+				"irite.sfc.initialStep": {
+					"type": "string",
+					"default": "",
+					"description": "Initial SFC step. Empty = a step named Standby/Idle/Init, else the first one."
 				}
 			}
 		}

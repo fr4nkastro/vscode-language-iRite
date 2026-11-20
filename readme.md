@@ -85,6 +85,44 @@ Limitations:
 -   Scales show a sample weight; screen names are not stored in the `.rev`,
     so screens are identified by number.
 
+### Database diagram (ERD)
+
+Run **iRite: Show Database Diagram** from the Command Palette. The extension
+finds the project's `main.src` (next to the active file, walking upwards, or
+in the workspace), reads every `type X is database ("Alias") ... end database;`
+and the `DB.SCHEMA`/`DB.ALIAS` entries of the `.rev` next to it, and draws one
+card per table with field types, string sizes and record limits.
+
+-   Fields or tables that exist only in the code or only in the `.rev` are
+    listed as diagnostics (schema drift).
+-   iRite has no foreign keys: dashed relations are *inferred* from field
+    names (`CustID` -> `Customer.Id`, a field equal to another table's key).
+-   Click a table header to open its declaration. Wheel zooms, drag pans.
+
+### Sequence diagram (SFC / Grafcet)
+
+Run **iRite: Show Sequence Diagram (SFC)**. It derives a PLC-style Grafcet
+from the Petri state machine convention:
+
+-   Steps are the members of the `STATES` enum; transitions are the members of
+    `TRANSITIONS` (sentinels `NullState`/`NullTransition` are skipped).
+-   A transition's target comes from `SetState(..., X)` under
+    `CurrentTransition = T`; its source steps come from where
+    `CmdSetTransition` / `SetHandlerTransition` / `CmdSetTransitionFromHandler`
+    emit it (inside a step's `Cmd*` entry routine or under a `= Step` guard).
+    Transitions emitted without a step guard are drawn in a "from any step"
+    lane.
+-   Diagnostics flag unreachable steps and transitions without target or
+    never emitted.
+-   Click a step to open its entry routine, a transition to list the code
+    that emits it.
+
+Settings: `irite.sfc.statesEnum`, `irite.sfc.transitionsEnum` (enum names,
+default `STATES` / `TRANSITIONS`) and `irite.sfc.initialStep` (default: a step
+named Standby/Idle/Init, else the first one).
+
+Both diagrams are read-only and refresh when the sources or `.rev` change.
+
 ### irite.settings.json
 
 Defaults are established on build, but must be modified for which
