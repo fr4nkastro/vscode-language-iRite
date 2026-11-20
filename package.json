@@ -128,6 +128,11 @@
 				"command": "irite.showSfc",
 				"title": "iRite: Show Sequence Diagram (SFC)",
 				"description": "Grafcet-style diagram of the STATES/TRANSITIONS state machine (read-only)"
+			},
+			{
+				"command": "irite.generateDocs",
+				"title": "iRite: Generate Project Docs",
+				"description": "Write Markdown documentation (ERD, SFC, screens, routines) to docs/generated/ (never touches .rev or sources)"
 			}
 		],
 		"configuration": {
