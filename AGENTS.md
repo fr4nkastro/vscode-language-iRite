@@ -22,7 +22,7 @@
 - `*.vsix`, `VSIX old/`, `dist/` are build artifacts.
 - Publish checklist (manual, user decision): `Checklist to Publish.txt` — update `CHANGELOG.md`, `package.json`, `package-lock.json`, then `npm run package`.
 
-## Roadmap (agreed direction, not yet implemented)
+## Roadmap (F0–F5 implemented on `feat/visualizers`; see `odd/tasks/irite-visualizers.md`)
 Goal: keep design and documentation inside VS Code — DB ERDs, PLC-style SFC/Grafcet of state machines, and 1280 screen previews — so Revolution is not needed just to *see* a project. Revolution remains the editor of `.rev`; the extension only **reads** it.
 - F0 toolchain modernization + split `extension.ts` into modules + test infra.
 - F1 lightweight iRite parser → project model JSON, starting at `main.src` and following `#include` order.
