@@ -69,7 +69,7 @@ function sanitizePts(raw: unknown): Pt[] {
 		.filter((p): p is Pt => p !== undefined);
 }
 
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+export const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /**
  * Validates untrusted data (the file, or a webview message) into a `SavedDiagram`: invalid entries are

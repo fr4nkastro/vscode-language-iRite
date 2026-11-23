@@ -5,7 +5,7 @@ import { parseIriteSource } from "../../src/irite";
 import type { IriteProjectModel } from "../../src/irite";
 import { buildSfc } from "../../src/sfc/sfcModel";
 import { layoutSfc } from "../../src/sfc/sfcLayout";
-import { mergeLayout } from "../../src/sfc/sfcLayoutEdit";
+import { knownKeys, mergeLayout, mergeSave } from "../../src/sfc/sfcLayoutEdit";
 import { geometry, GEOMETRY_SOURCE } from "../../src/sfc/sfcGeometry";
 import type { RouteSpec } from "../../src/sfc/sfcGeometry";
 import { diagramKey, isEmptyDiagram, linkKey, parseSidecar, sanitizeDiagram, serializeSidecar, stepKey, withDiagram } from "../../src/sfc/sfcSidecar";
@@ -168,5 +168,28 @@ describe("sidecar", () => {
 	it("drops a diagram from the file when its layout is empty", () => {
 		const f = withDiagram({ version: 1, diagrams: { k: { steps: { a: { x: 1, y: 1 } }, links: {} } } }, "k", { steps: {}, links: {} });
 		expect(f.diagrams).toEqual({});
+	});
+});
+
+describe("mergeSave", () => {
+	const known = knownKeys(auto);
+	it("keeps only drawn names from a webview message and sanitizes them", () => {
+		const d = mergeSave(undefined, { steps: { Ask: { x: 1.4, y: 2 }, ghost: { x: 1, y: 1 } }, links: { "start@standby": { bar: { x: 3, y: 4 } }, "ghost@x": { bar: { x: 1, y: 1 } } } }, known);
+		expect(d).toEqual({ steps: { ask: { x: 1, y: 2 } }, links: { "start@standby": { bar: { x: 3, y: 4 } } } });
+		expect(mergeSave(undefined, "garbage", known)).toEqual({ steps: {}, links: {} });
+		const prev: SavedDiagram = { steps: { ask: { x: 1, y: 1 } }, links: {} };
+		for (const bad of ["garbage", null, {}, { steps: {} }, { steps: [], links: {} }]) {
+			expect(mergeSave(prev, bad, known)).toBe(prev);
+		}
+	});
+	it("keeps previously saved entries for names that are not drawn right now", () => {
+		const prev: SavedDiagram = { steps: { oldname: { x: 9, y: 9 }, ask: { x: 0, y: 0 } }, links: { "gone@oldname": { bar: { x: 1, y: 1 } } } };
+		const d = mergeSave(prev, { steps: { ask: { x: 5, y: 5 } }, links: {} }, known);
+		expect(d.steps).toEqual({ ask: { x: 5, y: 5 }, oldname: { x: 9, y: 9 } });
+		expect(d.links).toEqual({ "gone@oldname": { bar: { x: 1, y: 1 } } });
+	});
+	it("drops a drawn entry the webview no longer sends (e.g. a removed bend)", () => {
+		const prev: SavedDiagram = { steps: {}, links: { "start@standby": { after: [{ x: 1, y: 1 }] } } };
+		expect(mergeSave(prev, { steps: {}, links: {} }, known).links).toEqual({});
 	});
 });

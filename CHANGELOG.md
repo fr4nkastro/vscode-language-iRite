@@ -2,6 +2,7 @@ ChangeLog
 =========
 
 #### Unreleased
+- SFC diagram is now editable: drag steps and transition bars, add/move/remove bend points on lines (double-click or Alt+click a line), and the layout is saved to `.vscode/irite-sfc.layout.json` (keyed by step/transition name, never writes `.src`/`.iri`/`.rev`). `Reset layout` button and `iRite: Reset SFC Layout` command restore the automatic layout. Zoom/pan are kept across refreshes.
 - SFC diagnostics now appear in the Problems panel (collection `irite-sfc`) with real severities (no target = Error, unreachable / never emitted = Warning, no entry routine = Information) and file/line; they are cleared when the SFC tab is closed.
 - New DB access standard check: every `type X is database` table is expected to have `db<Table>Create/Read/Update/Delete/GetRecord/Get<Field>/Set<Field>/Search`; a Warning on the declaration lists the missing and pending routines. Quick Fix / `iRite: Scaffold DB Access Routines` appends stubs marked `-- TODO(irite-db): pending implementation` (never overwrites); `iRite: Export Pending DB Routines (JSON)` hands the list to an MCP/agent. Settings `irite.dbAccess.*`.
 - New command `iRite: Generate Project Docs`: writes Markdown (index, ERD, SFC, screens with SVG wireframes, routines) to `docs/generated/`; never overwrites files without the generated marker.

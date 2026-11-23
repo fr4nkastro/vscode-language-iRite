@@ -2,7 +2,7 @@
 import { geometry } from "./sfcGeometry";
 import type { Pt } from "./sfcGeometry";
 import type { LayoutLink, LayoutNode, SfcLayout } from "./sfcLayout";
-import { isEmptyDiagram, linkKey, stepKey } from "./sfcSidecar";
+import { isEmptyDiagram, isRecord, linkKey, sanitizeDiagram, stepKey } from "./sfcSidecar";
 import type { SavedDiagram } from "./sfcSidecar";
 
 export interface MergeResult {
@@ -68,4 +68,45 @@ export function mergeLayout(auto: SfcLayout, saved: SavedDiagram | undefined): M
 		}
 	}
 	return { layout: { ...auto, width, height, nodes, links }, ignored };
+}
+
+/** Keys of the steps and links currently drawn (what a webview message may refer to). */
+export function knownKeys(layout: SfcLayout): { steps: Set<string>; links: Set<string> } {
+	return { steps: new Set(layout.nodes.map((n) => stepKey(n.name))), links: new Set(layout.links.map((l) => linkKey(l.transition, l.from))) };
+}
+
+/**
+ * Builds the diagram to store from a webview message: the message is validated, entries for names that
+ * are not drawn are dropped, and entries previously saved for names that are not drawn right now (a
+ * renamed or removed step) are kept, so a temporary rename does not lose a hand-made layout.
+ * A payload that is not shaped like a layout returns `prev` untouched.
+ */
+export function mergeSave(prev: SavedDiagram | undefined, incoming: unknown, known: { steps: Set<string>; links: Set<string> }): SavedDiagram {
+	// A message that is not a layout (missing or malformed `steps` / `links`) changes nothing.
+	if (!isRecord(incoming) || !isRecord(incoming.steps) || !isRecord(incoming.links)) {
+		return prev ?? { steps: {}, links: {} };
+	}
+	const inc = sanitizeDiagram(incoming);
+	const out: SavedDiagram = { steps: {}, links: {} };
+	for (const [k, v] of Object.entries(inc.steps)) {
+		if (known.steps.has(k)) {
+			out.steps[k] = v;
+		}
+	}
+	for (const [k, v] of Object.entries(inc.links)) {
+		if (known.links.has(k)) {
+			out.links[k] = v;
+		}
+	}
+	for (const [k, v] of Object.entries(prev?.steps ?? {})) {
+		if (!known.steps.has(k)) {
+			out.steps[k] = v;
+		}
+	}
+	for (const [k, v] of Object.entries(prev?.links ?? {})) {
+		if (!known.links.has(k)) {
+			out.links[k] = v;
+		}
+	}
+	return out;
 }
