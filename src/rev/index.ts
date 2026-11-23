@@ -4,6 +4,8 @@
  * write path (widget x/y/width/height) lives in `./serialize` and is lossless.
  */
 
+import { propsOf } from "./widgetCatalog";
+
 export interface RevHeader {
 	revision?: string;
 	indicatorModel?: string;
@@ -26,6 +28,10 @@ export type WidgetTypeName = "scale" | "bargraph" | "label" | "symbol" | "image"
 
 export interface RevWidget {
 	id: number;
+	/** Every token of the value as written (type code first), entity-decoded; extra and unknown tokens included. */
+	tokens: string[];
+	/** Named raw string tokens by catalog field name (`{}` for types the catalog does not know). */
+	props: Record<string, string>;
 	type: number;
 	typeName: WidgetTypeName;
 	screen?: number;
@@ -165,7 +171,7 @@ function parseWidget(entry: ConfigEntry, diagnostics: RevDiagnostic[]): RevWidge
 	const id = entry.index as number;
 	const f = entry.value.split(",");
 	const type = Number(f[0]);
-	const base: RevWidget = { id, type: Number.isFinite(type) ? type : -1, typeName: "unknown", raw: f, line: entry.line };
+	const base: RevWidget = { id, type: Number.isFinite(type) ? type : -1, typeName: "unknown", tokens: f, props: propsOf(type, f), raw: f, line: entry.line };
 	const bad = (why: string): RevWidget => {
 		diagnostics.push({ line: entry.line, message: `WDGT#${id}: ${why}; kept as unknown` });
 		return base;
