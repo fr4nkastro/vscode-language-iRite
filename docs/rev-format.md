@@ -288,6 +288,8 @@ Exact: a header line `-- Widget Aliases`, then one line per widget that has an a
 - Preview and `rev-cli render` draw a placeholder per type (bitmap, bargraph, label, numeric as label, symbol, image, chart, softkey, line, scale, monospace label with a monospace font). Preview paint order stays ascending id (the designer's "scale widgets last" pass is not applied); z-order is view-only.
 - The preview's panel header assumption (92 px for 7 in, 147.2 px for 12 in) is not the designer's 42 px title bar with an 800x384 / 1280x704 client area (section 3). Which one matches the real device is **UNCONFIRMED** and the preview constants are unchanged.
 
+- Label lines (types 4, 11) with more tokens than the catalog (a caption with commas written by another tool, or trailing extras) are ambiguous: the serializer patches only the geometry before the caption on such lines and refuses everything else.
+
 ## 8. Other facts
 
 - Maximum 1000 widgets per file (UI); ids up to 999 load. A screen number is 1..99. `[IL]`.
