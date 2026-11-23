@@ -305,6 +305,26 @@ Exact: a header line `-- Widget Aliases`, then one line per widget that has an a
 
 - Label lines (types 4, 11) with more tokens than the catalog (a caption with commas written by another tool, or trailing extras) are ambiguous: the serializer patches only the geometry before the caption on such lines and refuses everything else.
 
+## Database
+
+The following database observations are from the read-only DOLE `main.rev:1005-1016` and its generated `main.iri:20-56` (`[SAMPLES]`); they do not establish the complete Revolution enum or validation rules.
+
+- A table uses `DB.SCHEMA#<index>=<maxRecords>,0,<field>,<typeCode>,<size>[,<field>,<typeCode>,<size>...]` and `DB.ALIAS#<index>=<tableName>`. The matching index pairs a schema with its alias; field triples are in the same order as the corresponding iRite database declaration. The meaning and permitted values of the second schema token, observed as `0`, are **UNCONFIRMED**.
+- DOLE writes each `DB.SCHEMA#n` immediately followed by `DB.ALIAS#n`, for indices 1 through 6 in ascending order. Its DB block follows `DIO.ALIAS.8#0` and precedes `EDP.ADDRESS#1` (then `EDP.ALIAS#1`): the observed port key prefix is `EDP.`. The family order from `[IL]` places analog out before database and comm ports after it (section 1), but DOLE has no observed analog-out line at this boundary; the exact analog-out key prefix is **UNCONFIRMED**. Do not infer a prefix or assume every file has either neighboring family.
+
+| Code | Observed size(s) | iRite type in DOLE | Example |
+|------|------------------|--------------------|---------|
+| 1 | 1 | Integer | `Trans.TypeWgt` |
+| 2 | 2 | Integer | `Trans.Id` |
+| 3 | 4 | Integer | `Trans.Ticket` |
+| 4 | 4 | Real | `Trans.Weight` |
+| 6 | 19 | String | `Trans.OutDT` |
+| 7 | 7, 15, 16, 19, 20 | String | `Vehicles.TruckId` (7), `Trans.InDT` (19) |
+
+These are observed code/size combinations, not proven exhaustive size rules. The full enum, numeric ranges, whether other sizes are accepted, and the difference between string codes 6 and 7 are **UNCONFIRMED**. No DB enum or size rules were established by the prior `[REA]`/`[IL]` investigation. Preserve unknown codes and their raw tokens without rewriting them.
+
+DOLE contains `maxRecords` values from 1 to 500000; 500000 is an observation, **not** a maximum. Maximum records, number of fields, table-name and field-name lengths, and other device or designer limits are **UNCONFIRMED**; do not invent maxima or block on unproven limits. Editing schemas based on these observations may produce configurations Revolution or the indicator rejects, or break existing iRite code: warn the user and manually validate the saved file in Revolution and on a suitable test indicator before production use.
+
 ## 8. Other facts
 
 - Maximum 1000 widgets per file (UI); ids up to 999 load. A screen number is 1..99. `[IL]`.
