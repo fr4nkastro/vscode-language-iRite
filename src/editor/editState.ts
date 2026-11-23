@@ -142,3 +142,9 @@ export function parseEditState(raw: unknown, rev: RevModel): EditState {
 	}
 	return state;
 }
+
+/** Ids whose effective geometry differs between two states; ascending. Used to sync the page after undo/redo. */
+export function changedIds(a: EditState, b: EditState): number[] {
+	const ids = new Set([...Object.keys(a.geom), ...Object.keys(b.geom)].map(Number));
+	return [...ids].filter((id) => JSON.stringify(a.geom[id]) !== JSON.stringify(b.geom[id])).sort((x, y) => x - y);
+}
