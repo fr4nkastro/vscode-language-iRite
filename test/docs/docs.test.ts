@@ -88,6 +88,13 @@ describe("generateDocs", () => {
 		expect(svg).toContain("&lt;b&gt;&amp;&quot;x&quot;&lt;/b&gt;");
 		expect(svg).not.toContain("<b>");
 	});
+	it("uses resolved built-in images in SVGs, retaining placeholders when unavailable", () => {
+		const r = parseRev('<Indicator><Config>WDGT#1=7,1,2,20,30,1,1,0,local://9.png,1,img1\n</Config></Indicator>');
+		const base = { project, rev: r, projectDir, version: "1", now };
+		const svg = (o: ReturnType<typeof generateDocs>) => o.files.find((f) => f.relPath.endsWith("screen-1.svg"))!.content;
+		expect(svg(generateDocs(base))).toContain("local://9.png");
+		expect(svg(generateDocs({ ...base, builtinImageUri: (id, panel) => id === "9.png" && panel === "7" ? "file:///cache/9.png" : undefined }))).toContain('href="file:///cache/9.png"');
+	});
 	it("emits docs even without a .rev", () => {
 		const o = generateDocs({ project, projectDir, version: "1", now });
 		expect(o.files.map((f) => f.relPath)).toContain("docs/generated/screens.md");

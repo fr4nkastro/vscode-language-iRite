@@ -1,4 +1,7 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
+import { fakeVersion } from "../firmware/cacheHelper";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runCli } from "../../src/cli/revCli";
@@ -65,6 +68,28 @@ describe("cli: screens / widgets", () => {
 		expect(runCli(["screens", rev], io).out).toBeUndefined();
 		expect(runCli(["render", rev, "--screen", String(n)], io).out).toBeUndefined();
 		expect(runCli(["render", rev, "--screen", String(n), "--out", "x.svg"], io).out?.path).toBe("x.svg");
+	});
+});
+
+describe("cli firmware images", () => {
+	it("resolves panel variants as file URIs and leaves missing images as placeholders", () => {
+		const root = mkdtempSync(join(tmpdir(), "irite-cli-"));
+		try {
+			const cache = fakeVersion(root, "2.0", { "7": [[9, 1, 1]], "12": [[9, 1, 1]] });
+			const text = '<Indicator><Config>WDGT#1=7,1,2,20,30,1,1,0,local://9.png,1,img1\n</Config></Indicator>';
+			const mock: CliIo = { ...io, readText: (p) => p === "sample.rev" ? text : undefined, exists: () => false };
+			for (const panel of ["7", "12"]) {
+				const result = runCli(["render", "sample.rev", "--screen", "1", "--panel", panel, "--firmware-images", cache], mock);
+				expect(result.code).toBe(0);
+				expect(result.stderr).toBe("");
+				expect(result.stdout).toContain(pathToFileURL(join(cache, panel, "9.png")).toString());
+			}
+			const absent = runCli(["render", "sample.rev", "--screen", "1"], mock);
+			expect(absent.code).toBe(0);
+			expect(absent.stderr).toBe("");
+			expect(absent.stdout).toContain("local://9.png");
+			expect(runCli(["widgets", "sample.rev", "--firmware-images", cache], mock).code).toBe(2);
+		} finally { rmSync(root, { recursive: true, force: true }); }
 	});
 });
 

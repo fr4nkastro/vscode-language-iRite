@@ -6,6 +6,7 @@
  *   render  <rev> --screen n [--panel 7|12] [--out file]   SVG that matches the preview webview
  */
 import * as path from "node:path";
+import { builtinResolver, fileUri, loadCacheFromDir } from "../firmware/imageResolver";
 import { loadIriteProject } from "../irite";
 import type { IriteProjectModel } from "../irite";
 import { isPanelId, panelGeometry, scaleRect } from "../preview/panels";
@@ -34,7 +35,7 @@ export interface CliResult {
 export const USAGE = `Usage: rev-cli <command> <file.rev> [options]
   screens <rev>                                       List screens (number, names, widget count) as JSON
   widgets <rev> [--screen n] [--panel 7|12]           Widgets in paint order, named props, boxes, overlaps, as JSON
-  render  <rev> --screen n [--panel 7|12] [--out f]   Render a screen as SVG (same geometry as the preview)
+  render  <rev> --screen n [--panel 7|12] [--out f] [--firmware-images dir]   Render a screen as SVG
 Each widget lists "props": its named properties from the widget catalog (type name in "typeName").
 Read-only: the .rev is never modified.
 `;
@@ -52,6 +53,7 @@ interface Parsed {
 	screen?: number;
 	panel: PanelId;
 	out?: string;
+	firmwareImages?: string;
 }
 
 function parseArgs(argv: string[]): Parsed | string {
@@ -76,6 +78,8 @@ function parseArgs(argv: string[]): Parsed | string {
 				return `--panel must be 7 or 12, got "${value}"`;
 			}
 			p.panel = value;
+		} else if (flag === "--firmware-images" && command === "render") {
+			p.firmwareImages = value;
 		} else if (flag === "--out") {
 			p.out = value;
 		} else {
@@ -168,6 +172,7 @@ export function runCli(argv: string[], io: CliIo): CliResult {
 	}
 	const svg = renderScreenSvg(wanted[0], {
 		panel: args.panel,
+		builtinImageUri: args.firmwareImages ? builtinResolver(loadCacheFromDir(path.resolve(args.firmwareImages)), fileUri) : undefined,
 		imageData: (rel) => {
 			const abs = path.join(dir, rel);
 			const ext = path.extname(rel).slice(1).toLowerCase();

@@ -204,6 +204,21 @@ Binding: source 1 → field = scale number, subfield 1 tare, 2 standstill, 3 cen
 
 The designer draws a placeholder; it does not read the image, and it does not interpret `local://N.png` (that is a device-side name). `[IL]` `ImageWidget.DrawWidget`; `[SAMPLES]`: about 1,500 of 3,600 image lines use `local://`. Where `sdimages/` files are resolved is outside Revolution's widget code (**UNCONFIRMED**).
 
+#### Built-in image resolution (firmware 2.09.04)
+
+Clean-room evidence: `odd/reports/firmware-local-images.md`, T1, including REA
+`analyze-javascript-application` on `var/node/public/scripts/app/widgets/imageWidget.js`,
+tar listings and the `S11graphicsetup` boot script. The device maps
+`local://N.png` to `/images/lclimages/N.png` without an offset; this firmware
+contains 1.png through 68.png. Boot selects `images7` or `images12` by panel;
+`images` is the pre-boot default. All three variants were byte-identical in
+2.09.04, not established for other releases. The device stretches images to
+the widget box; no official image names were found. Native binaries were not
+analysed by REA because its native providers were unavailable. No firmware
+assets are reproduced here. The extension's cache fallback (panel, default,
+other panel) is its own policy, not a device fallback. Bitmap type 2 has a
+style enum, not an image file token.
+
 ### Type 8 — Chart widget (9 tokens)
 
 `8,x,y,w,h,visible,chartStyle,screen,alias` (note: screen BEFORE alias, unlike type 7). `[IL]` `ChartWidget`.
@@ -285,7 +300,7 @@ Exact: a header line `-- Widget Aliases`, then one line per widget that has an a
 ## 7. How the extension uses this
 
 - The reader (`src/rev/index.ts`) names every catalog type (1..11) and exposes geometry, screen, alias, caption, font and colours for all of them plus every named property (`props`, by the field names of `src/rev/widgetCatalog.ts`). Types outside the catalog (for example 12 or later) stay raw tokens and round-trip untouched.
-- Preview and `rev-cli render` draw a placeholder per type (bitmap, bargraph, label, numeric as label, symbol, image, chart, softkey, line, scale, monospace label with a monospace font). Preview paint order stays ascending id (the designer's "scale widgets last" pass is not applied); z-order is view-only.
+- Preview and `rev-cli render` draw each type (bitmap, bargraph, label, numeric as label, symbol, image, chart, softkey, line, scale, monospace label with a monospace font); built-in images resolve from an optional user-imported firmware cache, otherwise they remain placeholders. Preview paint order stays ascending id (the designer's "scale widgets last" pass is not applied); z-order is view-only.
 - The preview's panel header assumption (92 px for 7 in, 147.2 px for 12 in) is not the designer's 42 px title bar with an 800x384 / 1280x704 client area (section 3). Which one matches the real device is **UNCONFIRMED** and the preview constants are unchanged.
 
 - Label lines (types 4, 11) with more tokens than the catalog (a caption with commas written by another tool, or trailing extras) are ambiguous: the serializer patches only the geometry before the caption on such lines and refuses everything else.
