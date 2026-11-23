@@ -5,6 +5,27 @@ import { createDbSchema, editDbSchema, validateDbSchema } from "../../src/dbsche
 const rev = () => parseRev('<Indicator><Config>\nDB.SCHEMA#2=0010,00,A,03,04,Mystery,99,007\nDB.ALIAS#2=Table_1\n</Config></Indicator>');
 
 describe("database schema model", () => {
+ it("maps observed type 1 on read and after type edits", () => {
+  const parsed = createDbSchema(parseRev('<Indicator><Config>\nDB.SCHEMA#1=1,0,Weight,1,1\nDB.ALIAS#1=Weights\n</Config></Indicator>'));
+  expect(parsed.tables[0].fields[0].typeName).toBe('integer');
+  const changed = editDbSchema(parsed, { kind: 'updateField', table: 1, field: 0, changes: { typeCode: 3, size: 4 } });
+  expect(changed.tables[0].fields[0].typeName).toBe('integer');
+  expect(editDbSchema(changed, { kind: 'updateField', table: 1, field: 0, changes: { typeCode: 1, size: 1 } }).tables[0].fields[0].typeName).toBe('integer');
+ });
+ it('refuses malformed DB family keys', () => {
+  for (const key of ['DB.SCHEMA#bad', 'DB.ALIAS#bad', 'DB.SCHEMA#', 'DB.ALIAS#1x']) {
+   expect(() => createDbSchema(parseRev(`<Indicator><Config>\n${key}=x\n</Config></Indicator>`))).toThrow(/database/i);
+  }
+ });
+ it('rejects case-insensitive reserved words in table and field names', () => {
+  for (const name of ['begin', 'END', 'if', 'Type', 'procedure']) {
+   const table = editDbSchema(createDbSchema(rev()), { kind: 'updateTable', table: 2, name });
+   expect(validateDbSchema(table).errors.join(' ')).toMatch(/identifier/i);
+   const field = editDbSchema(createDbSchema(rev()), { kind: 'updateField', table: 2, field: 0, changes: { name } });
+   expect(validateDbSchema(field).errors.join(' ')).toMatch(/identifier/i);
+  }
+  expect(validateDbSchema(createDbSchema(rev())).errors).toEqual([]);
+ });
  it("retains source identity through edits and reorder and rejects unknown-field edits/additions", () => {
   let m = createDbSchema(rev());
   m = editDbSchema(m, { kind: "moveField", table: 2, from: 1, to: 0 });

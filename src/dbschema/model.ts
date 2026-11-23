@@ -16,9 +16,14 @@ export type DbEdit =
 
 const types: Record<number, RevDbField["typeName"]> = { 1: "integer", 2: "integer", 3: "integer", 4: "real", 6: "string", 7: "string" };
 const observed: Record<number, number[]> = { 1: [1], 2: [2], 3: [4], 4: [4], 6: [19], 7: [7, 15, 16, 19, 20] };
+// Structural and word operators from syntaxes/irite.tmLanguage; its math functions are not keywords.
+const keywords = new Set("begin end for loop to while return var if else elsif then and exit is mod not of or record type function procedure program handler".split(" "));
 
 /** Reject ambiguous input rather than assigning the wrong raw token provenance. */
 export function createDbSchema(rev: RevModel): DbSchema {
+ for (const e of rev.config) {
+  if (/^DB\.(SCHEMA|ALIAS)#/.test(e.key)) throw new Error(`Malformed database entry ${e.key}`);
+ }
  const entries = rev.config.filter(e => e.key === "DB.SCHEMA" || e.key === "DB.ALIAS");
  const keys = new Set<string>();
  for (const e of entries) {
@@ -33,7 +38,7 @@ export function createDbSchema(rev: RevModel): DbSchema {
   const entry = entries.find(e => e.key === "DB.SCHEMA" && e.index === t.index);
   const tokens = entry?.value.split(",");
   if (!tokens || tokens.length !== 2 + t.fields.length * 3 || t.fields.some((f, i) => tokens[2 + i * 3] !== f.name || Number(tokens[3 + i * 3]) !== f.typeCode || Number(tokens[4 + i * 3]) !== f.size)) throw new Error(`Ambiguous database schema #${t.index}`);
-  return { index: t.index, sourceIndex: t.index, name: t.name, maxRecords: t.maxRecords, fields: t.fields.map((f, fieldIndex) => ({ ...f, source: { tableIndex: t.index, fieldIndex } })) };
+  return { index: t.index, sourceIndex: t.index, name: t.name, maxRecords: t.maxRecords, fields: t.fields.map((f, fieldIndex) => ({ ...f, typeName: types[f.typeCode] ?? f.typeName, source: { tableIndex: t.index, fieldIndex } })) };
  });
  if (tables.length * 2 !== entries.length) throw new Error("Malformed database schemas");
  return { tables, reservedIndexes: entries.map(e => e.index as number) };
@@ -76,7 +81,7 @@ export function validateDbSchema(model: DbSchema): { errors: string[]; warnings:
  const warnings = ["Database name lengths, field counts, record limits and device size rules are unconfirmed; validate in Revolution and on a test indicator before production."];
  const names = new Set<string>();
  const identifier = (name: string, what: string, seen: Set<string>) => {
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) errors.push(`${what}: invalid or missing iRite identifier`);
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) || keywords.has(name.toLowerCase())) errors.push(`${what}: invalid or missing iRite identifier`);
   const key = name.toLowerCase(); if (seen.has(key)) errors.push(`${what}: duplicate name`); seen.add(key);
  };
  const positive = (n: number, what: string) => { if (!Number.isSafeInteger(n) || n <= 0) errors.push(`${what} must be a positive safe integer`); };
