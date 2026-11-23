@@ -90,6 +90,29 @@ describe("sanitize (state reported by the webview and re-embedded by the extensi
 	});
 });
 
+describe("one step back / forward", () => {
+	const nat = [1, 2, 3, 4];
+	it("swaps with the neighbour and keeps the rest", () => {
+		const s = ps.stepForward(ps.emptyState(), "1", 2, nat);
+		expect(ps.paintOrder(s, "1", nat)).toEqual([1, 3, 2, 4]);
+		expect(ps.paintOrder(ps.stepBack(s, "1", 4, nat), "1", nat)).toEqual([1, 3, 4, 2]);
+	});
+	it("does nothing at the ends and for unknown ids", () => {
+		const e = ps.emptyState();
+		expect(ps.stepBack(e, "1", 1, nat)).toBe(e);
+		expect(ps.stepForward(e, "1", 4, nat)).toBe(e);
+		expect(ps.stepForward(e, "1", 99, nat)).toBe(e);
+	});
+	it("steps compose with send to back / bring to front", () => {
+		const s = ps.stepForward(ps.sendToBack(ps.emptyState(), "1", 3), "1", 3, nat);
+		expect(ps.paintOrder(s, "1", nat)).toEqual([1, 3, 2, 4]);
+	});
+	it("returning to the natural order drops the override", () => {
+		const s = ps.stepBack(ps.stepForward(ps.emptyState(), "1", 2, nat), "1", 2, nat);
+		expect(ps.hasOrderOverride(s, "1")).toBe(false);
+	});
+});
+
 describe("embedded source", () => {
 	it("is self-contained and behaves like the exported instance", () => {
 		const embedded = new Function(`return ${PREVIEW_STATE_SOURCE};`)();

@@ -131,6 +131,27 @@ export function createPreviewState(panelIds: string[], defaultPanel: string) {
 		return withOrder(s, screen, { back: [...without(cur.back, id), id], front: without(cur.front, id) });
 	}
 
+	/** Moves `id` one position towards the back (-1) or the front (+1); the order becomes explicit (all in `front`). */
+	function step(s: PreviewState, screen: string, id: number, natural: number[], dir: number): PreviewState {
+		const ord = paintOrder(s, screen, natural);
+		const i = ord.indexOf(id);
+		const j = i + dir;
+		if (i < 0 || j < 0 || j >= ord.length) {
+			return s;
+		}
+		ord[i] = ord[j];
+		ord[j] = id;
+		return ord.every((v, k) => v === natural[k]) ? withOrder(s, screen, { back: [], front: [] }) : withOrder(s, screen, { back: [], front: ord });
+	}
+
+	function stepBack(s: PreviewState, screen: string, id: number, natural: number[]): PreviewState {
+		return step(s, screen, id, natural, -1);
+	}
+
+	function stepForward(s: PreviewState, screen: string, id: number, natural: number[]): PreviewState {
+		return step(s, screen, id, natural, 1);
+	}
+
 	function resetOrder(s: PreviewState, screen?: string): PreviewState {
 		if (screen === undefined) {
 			return { ...s, order: {} };
@@ -158,7 +179,7 @@ export function createPreviewState(panelIds: string[], defaultPanel: string) {
 		return [...back, ...middle, ...front];
 	}
 
-	return { emptyState, sanitize, isHidden, toggleHidden, showAll, bringToFront, sendToBack, resetOrder, hasOrderOverride, paintOrder };
+	return { emptyState, sanitize, isHidden, toggleHidden, showAll, bringToFront, sendToBack, stepBack, stepForward, resetOrder, hasOrderOverride, paintOrder };
 }
 
 export const previewState = createPreviewState(["7", "12"], "7");
