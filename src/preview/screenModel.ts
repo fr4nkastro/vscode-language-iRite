@@ -6,6 +6,8 @@
 import type { IriteProjectModel } from "../irite";
 import type { RevDiagnostic, RevModel, RevWidget } from "../rev";
 import { groupReferences } from "./refGroups";
+import { resolveScreenEntries, resolveScreenNames } from "./screenNames";
+import type { ScreenEntry } from "./screenNames";
 import type { FileRefs } from "./refGroups";
 
 export interface WidgetReference {
@@ -29,6 +31,10 @@ export interface WidgetView extends RevWidget {
 
 export interface ScreenView {
 	number: number;
+	/** `UiScreen` field names assigned this number in code (empty when unknown). */
+	names: string[];
+	/** Per-screen click routine dispatched by `WidgetClicked`, when found. */
+	entry?: ScreenEntry;
 	/**
 	 * Paint order = widget id ascending (assumption: Revolution paints in id
 	 * order; unconfirmed on a real device).
@@ -114,6 +120,8 @@ export function buildScreenView(rev: RevModel, project?: IriteProjectModel): Scr
 	}
 	const refs = indexReferences(project, aliases);
 	const root = project ? dirOf(project.mainSrc) : "";
+	const names = resolveScreenNames(project);
+	const entries = resolveScreenEntries(project, names);
 	const byScreen = new Map<number, WidgetView[]>();
 	for (const w of rev.widgets) {
 		if (w.screen === undefined) {
@@ -126,6 +134,9 @@ export function buildScreenView(rev: RevModel, project?: IriteProjectModel): Scr
 	}
 	const screens = [...byScreen.entries()]
 		.sort((a, b) => a[0] - b[0])
-		.map(([number, widgets]) => ({ number, widgets: widgets.sort((a, b) => a.id - b.id) }));
+		.map(([number, widgets]) => {
+			const entry = entries.get(number);
+			return { number, names: names.get(number) ?? [], ...(entry ? { entry } : {}), widgets: widgets.sort((a, b) => a.id - b.id) };
+		});
 	return { screens, diagnostics: rev.diagnostics };
 }
