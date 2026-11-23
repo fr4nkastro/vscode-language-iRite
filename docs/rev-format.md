@@ -1,6 +1,6 @@
 # Revolution `.rev` format (1280) — clean-room reference
 
-DRAFT. Own description of the `.rev` file written by Rice Lake Revolution for the 1280 indicator (model `1280`, child assembly `rev1280.v308.dll`), written for this extension's reader, serializer and screen editor. It contains facts only (field order, names, types, enum values, defaults, ranges), no copied code, no copied model XML, no copied help text, no images.
+Own description of the `.rev` file written by Rice Lake Revolution for the 1280 indicator (model `1280`, child assembly `rev1280.v308.dll`), written for this extension's reader, serializer and screen editor. It contains facts only (field order, names, types, enum values, defaults, ranges), no copied code, no copied model XML, no copied help text, no images.
 
 ## How the facts were obtained
 
@@ -282,7 +282,13 @@ Exact: a header line `-- Widget Aliases`, then one line per widget that has an a
 - To the device: after `WDGT.CLR`, Revolution sends one `WDGT#<id>=<value>` command per widget in memory order (value as in the file). `[IL]` `WidgetCollection.SendToIndicatorImpl`, `WidgetData.SendToIndicatorImpl`. How the firmware orders painting is not visible in Revolution: **UNCONFIRMED** (assumed id order; sending order is not stable).
 - Conclusion: the only persistable paint-order lever is the **id** (and for scales their fixed top layer), which would mean renumbering widgets and changing the `main.iri` constants used by code. Z-order cannot be persisted safely without that; keep it view-only.
 
-## 7. Other facts
+## 7. How the extension uses this
+
+- The reader (`src/rev/index.ts`) names every catalog type (1..11) and exposes geometry, screen, alias, caption, font and colours for all of them plus every named property (`props`, by the field names of `src/rev/widgetCatalog.ts`). Types outside the catalog (for example 12 or later) stay raw tokens and round-trip untouched.
+- Preview and `rev-cli render` draw a placeholder per type (bitmap, bargraph, label, numeric as label, symbol, image, chart, softkey, line, scale, monospace label with a monospace font). Preview paint order stays ascending id (the designer's "scale widgets last" pass is not applied); z-order is view-only.
+- The preview's panel header assumption (92 px for 7 in, 147.2 px for 12 in) is not the designer's 42 px title bar with an 800x384 / 1280x704 client area (section 3). Which one matches the real device is **UNCONFIRMED** and the preview constants are unchanged.
+
+## 8. Other facts
 
 - Maximum 1000 widgets per file (UI); ids up to 999 load. A screen number is 1..99. `[IL]`.
 - Custom colours live in `<CustomData><Printers>` as `CUSTOMCOLORS=<int>|...` (up to 16 entries), not in the widget line. `[IL]` `WidgetCollection.CustomSave/CustomLoad`.
