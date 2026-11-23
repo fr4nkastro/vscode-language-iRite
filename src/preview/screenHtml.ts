@@ -112,7 +112,8 @@ body.single .screen.sel{display:block;}
 .frame{position:relative;overflow:hidden;border:1px solid var(--vscode-panel-border,#666);}
 .canvas{position:absolute;left:0;top:0;width:${CANVAS_WIDTH}px;height:${CANVAS_HEIGHT}px;background:#fff;transform-origin:0 0;}
 .w{position:absolute;box-sizing:border-box;overflow:hidden;cursor:pointer;}
-.w:hover,.w.sel{outline:2px solid #e91e63;z-index:100000;}
+.ovl{position:absolute;box-sizing:border-box;pointer-events:none;display:none;outline:2px solid #e91e63;z-index:1000000;}
+.ovl.hov{outline-style:dashed;outline-width:1px;}
 .label{white-space:nowrap;text-overflow:ellipsis;}
 .line{min-height:1px;}
 .scale{display:flex;align-items:center;justify-content:center;font-family:monospace;}
@@ -148,6 +149,13 @@ function select(s) { state = { screen: s }; vscode.setState(state); layout(); }
 document.querySelectorAll('#bar button').forEach(b => b.addEventListener('click', () => select(b.dataset.screen)));
 document.querySelectorAll('.screen h3').forEach(h => h.addEventListener('click', () => select(h.parentElement.dataset.screen)));
 let pinned = null;
+// Hover/selection are separate overlay boxes: they never change a widget's paint order.
+function place(box, el) {
+  if (!el) { box.style.display = 'none'; return; }
+  const st = el.style;
+  box.style.cssText = 'display:block;left:' + st.left + ';top:' + st.top + ';width:' + st.width + ';height:' + st.height + ';';
+}
+function boxes(el) { const c = el.closest('.canvas'); return { hov: c.querySelector('.ovl.hov'), sel: c.querySelector('.ovl.sel') }; }
 function show(el) {
   const i = JSON.parse(el.dataset.info);
   const box = document.getElementById('inspector');
@@ -165,11 +173,12 @@ function show(el) {
   });
 }
 document.querySelectorAll('.w').forEach(el => {
-  el.addEventListener('mouseenter', () => { if (!pinned) show(el); });
+  el.addEventListener('mouseenter', () => { place(boxes(el).hov, el); if (!pinned) show(el); });
+  el.addEventListener('mouseleave', () => place(boxes(el).hov, null));
   el.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (pinned) pinned.classList.remove('sel');
-    pinned = el; el.classList.add('sel'); show(el);
+    if (pinned) place(boxes(pinned).sel, null);
+    pinned = el; place(boxes(el).sel, el); show(el);
   });
 });
 window.addEventListener('resize', layout);
@@ -191,7 +200,7 @@ export function renderScreensHtml(view: ScreensView, opts: RenderOptions): strin
 		.map(
 			(s) =>
 				`<section class="screen" data-screen="${s.number}"><h3>Screen ${s.number} - ${s.widgets.length} widgets</h3>` +
-				`<div class="frame"><div class="canvas">${s.widgets.map((w) => renderWidget(w, opts)).join("")}</div></div></section>`,
+				`<div class="frame"><div class="canvas">${s.widgets.map((w) => renderWidget(w, opts)).join("")}<div class="ovl hov"></div><div class="ovl sel"></div></div></div></section>`,
 		)
 		.join("\n");
 	const diagTitle = view.diagnostics.map((d) => `line ${d.line}: ${d.message}`).join("\n");

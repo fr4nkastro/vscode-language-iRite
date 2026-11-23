@@ -97,4 +97,16 @@ describe("renderScreensHtml", () => {
 		expect(h).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
 		expect(h.match(/<script/g)?.length).toBe(1);
 	});
+	it("never lifts a hovered or selected widget in paint order (selection is an overlay)", () => {
+		const css = html.match(/<style>([\s\S]*?)<\/style>/)![1];
+		const widgetRules = css.split("}").filter((r) => /\.w[.:]/.test(r.split("{")[0]) && /hover|\.sel/.test(r.split("{")[0]));
+		for (const r of widgetRules) {
+			expect(r).not.toMatch(/z-index/);
+			expect(r).not.toMatch(/outline/);
+		}
+		expect(css).toMatch(/\.ovl\{[^}]*pointer-events:none/);
+		const n = buildScreenView(rev).screens.length;
+		expect(html.match(/<div class="ovl sel"/g)?.length).toBe(n);
+		expect(html.match(/<div class="ovl hov"/g)?.length).toBe(n);
+	});
 });
