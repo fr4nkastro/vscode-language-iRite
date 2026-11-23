@@ -130,6 +130,11 @@
 				"description": "Grafcet-style diagram of the STATES/TRANSITIONS state machine (read-only)"
 			},
 			{
+				"command": "irite.showCallMap",
+				"title": "iRite: Show Call Map",
+				"description": "Interactive C4-style map of how modules and routines call each other (read-only)"
+			},
+			{
 				"command": "irite.sfc.resetLayout",
 				"title": "iRite: Reset SFC Layout",
 				"description": "Delete the hand-made SFC layout of the project from .vscode/irite-sfc.layout.json and go back to the automatic layout"

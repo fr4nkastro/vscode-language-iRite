@@ -73,7 +73,7 @@ describe("moduleView (Level 2)", () => {
 		]);
 		expect(e("src/machine/scale.iri", "src/utils/text.iri")!.sites.map((s) => graph.sites[s].line)).toEqual([4, 11, 13]);
 		const scale = v.nodes.find((n) => n.id === "src/machine/scale.iri")!;
-		expect(scale).toMatchObject({ label: "scale.iri", group: "src/machine", routines: 2, internal: 2, outgoing: 4, incoming: 1 });
+		expect(scale).toMatchObject({ label: "machine/scale.iri", group: "src/machine", routines: 2, internal: 2, outgoing: 4, incoming: 1 });
 	});
 	it("collapses to one node per folder when asked", () => {
 		const v = callViews.moduleView(graph, "folder");

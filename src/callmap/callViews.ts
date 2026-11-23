@@ -123,7 +123,8 @@ export function createCallViews() {
 		const f = g.files[g.routines[routine].file];
 		return gran === "folder" ? f.folder : f.label;
 	};
-	const baseName = (label: string): string => label.slice(label.lastIndexOf("/") + 1);
+	/** Last two path segments: enough to tell the many `main.iri` of a project apart inside their folder frame. */
+	const shortLabel = (key: string): string => key.split("/").slice(-2).join("/");
 
 	/** Accumulates `sites` per key, keeping insertion order. */
 	const bucket = <T extends { count: number; sites: number[] }>(map: Map<string, T>, key: string, make: () => T, site: number): void => {
@@ -141,7 +142,7 @@ export function createCallViews() {
 		g.files.forEach((f) => {
 			const id = gran === "folder" ? f.folder : f.label;
 			if (!nodes.has(id)) {
-				nodes.set(id, { id, label: gran === "folder" ? f.folder : baseName(f.label), group: gran === "folder" ? "" : f.folder, routines: 0, internal: 0, incoming: 0, outgoing: 0 });
+				nodes.set(id, { id, label: shortLabel(id), group: gran === "folder" ? "" : f.folder, routines: 0, internal: 0, incoming: 0, outgoing: 0 });
 			}
 		});
 		g.routines.forEach((r) => {
@@ -369,7 +370,7 @@ export function createCallViews() {
 		return { pos, width: rX + NODE_W, height };
 	}
 
-	return { moduleView, moduleDetail, neighborhood, search, layoutGrouped, layoutColumns };
+	return { shortLabel, moduleView, moduleDetail, neighborhood, search, layoutGrouped, layoutColumns };
 }
 
 export const callViews = createCallViews();
