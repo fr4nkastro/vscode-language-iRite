@@ -7,6 +7,8 @@ export interface SfcStep {
 	entryRoutine?: string;
 	/** Location of the entry routine. */
 	source?: { file: string; line: number };
+	/** Declaration line of the enum holding this step. */
+	declared?: { file: string; line: number };
 	initial: boolean;
 }
 
@@ -29,11 +31,16 @@ export interface SfcTransition {
 	/** True when at least one emitter has no identifiable source step (global transition). */
 	anyStep: boolean;
 	emitters: SfcEmitter[];
+	/** Declaration line of the enum holding this transition. */
+	declared?: { file: string; line: number };
 }
 
+export type SfcDiagnosticCode = "missing-enum" | "conflicting-targets" | "unreachable-step" | "no-target" | "never-emitted" | "no-entry-routine";
+
 export interface SfcDiagnostic {
-	severity: "warning" | "info";
+	severity: "error" | "warning" | "info";
 	message: string;
+	code?: SfcDiagnosticCode;
 	file?: string;
 	line?: number;
 }
@@ -114,10 +121,10 @@ export function buildSfc(project: IriteProjectModel, opts: SfcOptions = {}): Sfc
 	const statesEnum = project.enums.find((e) => lc(e.name) === statesName);
 	const transEnum = project.enums.find((e) => lc(e.name) === transName);
 	if (!statesEnum) {
-		diagnostics.push({ severity: "warning", message: `Enum ${opts.statesEnum || "STATES"} not found` });
+		diagnostics.push({ severity: "warning", code: "missing-enum", message: `Enum ${opts.statesEnum || "STATES"} not found` });
 	}
 	if (!transEnum) {
-		diagnostics.push({ severity: "warning", message: `Enum ${opts.transitionsEnum || "TRANSITIONS"} not found` });
+		diagnostics.push({ severity: "warning", code: "missing-enum", message: `Enum ${opts.transitionsEnum || "TRANSITIONS"} not found` });
 	}
 	const stepNames = (statesEnum?.members ?? []).filter((m) => !SENTINELS.has(lc(m)));
 	const transNames = (transEnum?.members ?? []).filter((m) => !SENTINELS.has(lc(m)));
@@ -169,7 +176,7 @@ export function buildSfc(project: IriteProjectModel, opts: SfcOptions = {}): Sfc
 					if (prev === undefined) {
 						target.set(lc(t), x);
 					} else if (lc(prev) !== lc(x)) {
-						diagnostics.push({ severity: "warning", message: `Transition ${t} has conflicting targets ${prev} and ${x}`, file: r.file, line: c.line });
+						diagnostics.push({ severity: "warning", code: "conflicting-targets", message: `Transition ${t} has conflicting targets ${prev} and ${x}`, file: r.file, line: c.line });
 					}
 				}
 				break;
@@ -251,6 +258,7 @@ export function buildSfc(project: IriteProjectModel, opts: SfcOptions = {}): Sfc
 			sources: stepNames.filter((s) => specific.has(lc(s))),
 			anyStep: emitters.some((e) => (e.sources ?? []).length === 0),
 			emitters,
+			declared: transEnum ? { file: transEnum.file, line: transEnum.line } : undefined,
 		};
 	});
 
@@ -265,6 +273,7 @@ export function buildSfc(project: IriteProjectModel, opts: SfcOptions = {}): Sfc
 			name,
 			entryRoutine,
 			source: routine ? { file: routine.file, line: routine.line } : undefined,
+			declared: statesEnum ? { file: statesEnum.file, line: statesEnum.line } : undefined,
 			initial: name === initialName,
 		};
 	});
@@ -288,21 +297,23 @@ export function buildSfc(project: IriteProjectModel, opts: SfcOptions = {}): Sfc
 		}
 		for (const s of steps) {
 			if (!reach.has(lc(s.name))) {
-				diagnostics.push({ severity: "warning", message: `Step ${s.name} is unreachable from the initial step ${initialName}`, ...s.source });
+				const where = s.source ?? s.declared;
+				diagnostics.push({ severity: "warning", code: "unreachable-step", message: `Step ${s.name} is unreachable from the initial step ${initialName}`, ...where });
 			}
 		}
 	}
 	for (const t of transitions) {
 		if (!t.target) {
-			diagnostics.push({ severity: "warning", message: `Transition ${t.name} has no target (no SetState found)` });
+			const where = t.emitters[0] ? { file: t.emitters[0].file, line: t.emitters[0].line } : t.declared;
+			diagnostics.push({ severity: "error", code: "no-target", message: `Transition ${t.name} has no target (no SetState found)`, ...where });
 		}
 		if (t.emitters.length === 0) {
-			diagnostics.push({ severity: "warning", message: `Transition ${t.name} is never emitted` });
+			diagnostics.push({ severity: "warning", code: "never-emitted", message: `Transition ${t.name} is never emitted`, ...t.declared });
 		}
 	}
 	for (const s of steps) {
 		if (!s.entryRoutine) {
-			diagnostics.push({ severity: "info", message: `Step ${s.name} has no entry routine` });
+			diagnostics.push({ severity: "info", code: "no-entry-routine", message: `Step ${s.name} has no entry routine`, ...s.declared });
 		}
 	}
 	return { steps, transitions, diagnostics };

@@ -190,6 +190,13 @@ describe("renderSfcHtml", () => {
 		expect(h).not.toContain("<script>alert(1)");
 		expect(h).toContain("&lt;script&gt;alert(1)");
 	});
+	it("lists diagnostics with their severity class and makes located ones clickable", () => {
+		expect(html).toContain('<li class="warning hasfile" data-file="a.iri" data-line="1">Step Orphan is unreachable');
+		expect(html).toContain('<li class="info hasfile" data-file="a.iri" data-line="1">Step Done has no entry routine');
+		const nt = buildSfc(project("type STATES is (NullState, A);\ntype TRANSITIONS is (NullTransition, T);"));
+		expect(renderSfcHtml(nt, layoutSfc(nt), opts)).toContain('<li class="error hasfile" data-file="a.iri" data-line="2">Transition T has no target');
+		expect(html).toContain(".error {");
+	});
 	it("wires step click to the entry routine and lists emitters per transition", () => {
 		expect(html).toContain('data-file="a.iri" data-line="37"');
 		expect(html).toContain("CmdStandby");

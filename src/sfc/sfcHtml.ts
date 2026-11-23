@@ -39,7 +39,10 @@ h2 { font-size: 12px; margin: 12px 0 4px; }
 .em button { display: block; width: 100%; margin: 2px 0; background: var(--vscode-button-secondaryBackground, #3a3d41); color: var(--vscode-button-secondaryForeground, inherit); border: 0; padding: 4px 6px; cursor: pointer; }
 .cond { opacity: 0.8; font-family: var(--vscode-editor-font-family, monospace); }
 #diag { padding-left: 16px; }
+.error { color: var(--vscode-editorError-foreground, #f14c4c); }
 .warning { color: var(--vscode-editorWarning-foreground, #cca700); }
+#diag li.hasfile { cursor: pointer; }
+#diag li.hasfile:hover { text-decoration: underline; }
 `;
 
 const SCRIPT = `
@@ -80,7 +83,7 @@ function open(el) {
 document.addEventListener('click', (e) => {
   const t = e.target instanceof Element ? e.target : null;
   if (!t) { return; }
-  const btn = t.closest('button[data-file]');
+  const btn = t.closest('button[data-file], li[data-file]');
   if (btn) { open(btn); return; }
   if (moved) { moved = false; return; }
   const step = t.closest('.step[data-file]');
@@ -136,7 +139,12 @@ export function renderSfcHtml(sfc: SfcModel, layout: SfcLayout, opts: SfcHtmlOpt
 		return `<div class="em" id="em-${i}"><h2>${esc(t.name)}${t.target ? ` → ${esc(t.target)}` : ""}</h2>${rows.length > 0 ? rows.join("") : "<p>Never emitted.</p>"}</div>`;
 	});
 
-	const diag = sfc.diagnostics.map((d) => `<li class="${d.severity}">${esc(d.message)}</li>`).join("");
+	const diag = sfc.diagnostics
+		.map((d) => {
+			const open = d.file && d.line ? ` data-file="${esc(d.file)}" data-line="${d.line}"` : "";
+			return `<li class="${d.severity}${open ? " hasfile" : ""}"${open}>${esc(d.message)}</li>`;
+		})
+		.join("");
 	const csp = `default-src 'none'; style-src ${opts.cspSource} 'unsafe-inline'; script-src 'nonce-${opts.nonce}';`;
 	return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"/>

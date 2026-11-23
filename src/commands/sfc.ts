@@ -1,6 +1,5 @@
 // irite.showSfc: read-only webview with the SFC/Grafcet diagram of the Petri FSM. Never writes sources.
 import * as crypto from "crypto";
-import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { loadIriteProject } from "../irite";
@@ -9,57 +8,54 @@ import { layoutSfc } from "../sfc/sfcLayout";
 import { buildSfc } from "../sfc/sfcModel";
 import type { SfcOptions } from "../sfc/sfcModel";
 import { renderSfcHtml } from "../sfc/sfcHtml";
+import { groupSfcDiagnostics, toVsSeverityName } from "../sfc/sfcDiagnostics";
+import type { SfcDiagnostic } from "../sfc/sfcModel";
+import { locateMainSrc, readText } from "./locateProject";
 
 const VIEW_TYPE = "irite.showSfc";
 
-function readText(p: string): string | undefined {
-  try {
-    return fs.readFileSync(p, "utf8");
-  } catch {
-    return undefined;
+/**
+ * Publishes the SFC diagnostics of each open panel to the Problems view (collection `irite-sfc`).
+ * A project's entries live while its panel is open: they are replaced on every refresh and removed
+ * when the panel is closed (disposed). Only entries this class published are ever deleted.
+ */
+class SfcProblems {
+  private readonly collection = vscode.languages.createDiagnosticCollection("irite-sfc");
+  private readonly published = new Map<string, vscode.Uri[]>();
+
+  publish(mainSrc: string, diagnostics: SfcDiagnostic[]): void {
+    this.clear(mainSrc);
+    const uris: vscode.Uri[] = [];
+    for (const [file, items] of groupSfcDiagnostics(diagnostics, mainSrc)) {
+      const uri = vscode.Uri.file(file);
+      this.collection.set(
+        uri,
+        items.map((i) => {
+          const line = Math.max(0, i.line - 1);
+          const d = new vscode.Diagnostic(new vscode.Range(line, 0, line, 1000), i.message, vscode.DiagnosticSeverity[toVsSeverityName(i.severity)]);
+          d.source = "iRite SFC";
+          d.code = i.code;
+          return d;
+        }),
+      );
+      uris.push(uri);
+    }
+    this.published.set(mainSrc.toLowerCase(), uris);
+  }
+
+  clear(mainSrc: string): void {
+    for (const uri of this.published.get(mainSrc.toLowerCase()) ?? []) {
+      this.collection.delete(uri);
+    }
+    this.published.delete(mainSrc.toLowerCase());
+  }
+
+  dispose(): void {
+    this.collection.dispose();
   }
 }
 
-const isMainSrc = (p: string): boolean => path.basename(p).toLowerCase() === "main.src";
-
-async function locateMainSrc(arg: unknown): Promise<string | undefined> {
-  if (arg instanceof vscode.Uri && arg.scheme === "file" && isMainSrc(arg.fsPath)) {
-    return arg.fsPath;
-  }
-  const found: string[] = [];
-  const active = vscode.window.activeTextEditor?.document.uri;
-  if (active?.scheme === "file") {
-    let dir = path.dirname(active.fsPath);
-    for (;;) {
-      const candidate = path.join(dir, "main.src");
-      if (fs.existsSync(candidate)) {
-        found.push(candidate);
-        break;
-      }
-      const parent = path.dirname(dir);
-      if (parent === dir) {
-        break;
-      }
-      dir = parent;
-    }
-  }
-  if (found.length === 0) {
-    for (const f of await vscode.workspace.findFiles("**/main.src", "**/node_modules/**", 20)) {
-      found.push(f.fsPath);
-    }
-  }
-  if (found.length === 0) {
-    return undefined;
-  }
-  if (found.length === 1) {
-    return found[0];
-  }
-  const pick = await vscode.window.showQuickPick(
-    found.map((f) => ({ label: path.basename(path.dirname(f)), description: f, file: f })),
-    { placeHolder: "Select the iRite project (main.src)" },
-  );
-  return pick?.file;
-}
+let problems: SfcProblems | undefined;
 
 function readOptions(): SfcOptions {
   const cfg = vscode.workspace.getConfiguration("irite.sfc");
@@ -97,6 +93,7 @@ class SfcPanel {
     panel.onDidDispose(() => {
       clearTimeout(this.timer);
       this.watchers.forEach((w) => w.dispose());
+      problems?.clear(mainSrc);
       SfcPanel.panels.delete(mainSrc.toLowerCase());
     });
     this.render();
@@ -122,6 +119,7 @@ class SfcPanel {
     try {
       this.project = loadIriteProject(this.mainSrc, readText);
       const sfc = buildSfc(this.project, readOptions());
+      problems?.publish(this.mainSrc, sfc.diagnostics);
       this.panel.webview.html = renderSfcHtml(sfc, layoutSfc(sfc), {
         cspSource: this.panel.webview.cspSource,
         nonce: crypto.randomBytes(16).toString("base64"),
@@ -152,6 +150,8 @@ class SfcPanel {
 }
 
 export function registerSfcCommands(context: vscode.ExtensionContext): void {
+  problems = new SfcProblems();
+  context.subscriptions.push({ dispose: () => problems?.dispose() });
   context.subscriptions.push(
     vscode.commands.registerCommand("irite.showSfc", async (arg?: unknown) => {
       const main = await locateMainSrc(arg);

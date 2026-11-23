@@ -113,7 +113,14 @@ from the Petri state machine convention:
     Transitions emitted without a step guard are drawn in a "from any step"
     lane.
 -   Diagnostics flag unreachable steps and transitions without target or
-    never emitted.
+    never emitted. They are also published to the **Problems** panel
+    (source `iRite SFC`) while the diagram is open, with the file and line
+    when known; click one to open it. Severities: transition without target =
+    Error; unreachable step / transition never emitted / enum missing /
+    conflicting targets = Warning; step without entry routine = Information.
+    Entries without a location are attached to `main.src` line 1. The
+    entries are refreshed when the sources change and removed when the
+    diagram tab is closed.
 -   Click a step to open its entry routine, a transition to list the code
     that emits it.
 
