@@ -2,6 +2,8 @@ ChangeLog
 =========
 
 #### Unreleased
+- New opt-in **screen editor** (`iRite: Edit Screens`, a custom editor over `.rev` with priority "option"): move (drag, arrow keys, Shift = grid step), resize (handles), numeric x/y/w/h, snap with `irite.editor.snap` / `irite.editor.gridSize`, 12" view that edits in 7" pixels. Undo/redo/dirty/save/revert come from VS Code. Saving patches only the x/y/width/height of the edited `WDGT#n` lines (BOM, CRLF, order and every other byte are kept; no edits = no write). The first save of a session asks for confirmation and writes `main.rev.bak` (timestamped if it exists): `ConfigHash` is not recomputed and the result is unverified in Revolution. z-order and hide/show stay view-only. This is the first time the extension writes a `.rev`.
+- New headless CLI `dist/rev-cli.js` (`screens`, `widgets`, `render` SVG), read-only, no dependencies, for agents and scripts.
 - `iRite: Preview Screens` inspection upgrades (read-only, nothing is written to the `.rev`): 7"/12" panel selector with uniform widget scaling, a widget list synchronised with the canvas, hide/show per widget, preview-only bring-to-front / send-to-back, references grouped by file and routine (now including assignments and plain comparisons), screen names from `UiScreen` and the `WidgetClicked` entry point of each screen. Hidden widgets and z-order survive refreshes of the same panel.
 - Fix: selecting or hovering a widget in the preview no longer lifts it above the others (a full-screen background hid every widget on its screen); selection is now an outline overlay.
 - Generated `screens.md` now also lists references that are not call arguments (marked `(reference)`).
