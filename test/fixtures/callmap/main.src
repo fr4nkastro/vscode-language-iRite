@@ -1,0 +1,8 @@
+program main;
+
+#include main.iri
+#include src\decls.iri
+#include src\utils\math.iri
+#include src\utils\text.iri
+#include src\machine\scale.iri
+#include src\machine\ui.iri

@@ -1,0 +1,3 @@
+-- Forward declarations: the bodies live in other modules.
+procedure ScaleTare(iScale: integer);
+procedure UiRefresh;
