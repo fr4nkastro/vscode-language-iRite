@@ -1,5 +1,6 @@
 /** Pure HTML renderer for the screen preview webview (no `vscode` import). */
 import { resolveImage } from "../rev";
+import { BUILTIN_IMAGE_HINT } from "../firmware/imageCache";
 import { PANELS, allGeometries, panelGeometry } from "./panels";
 import type { PanelId } from "./panels";
 import type { ScreenView, ScreensView, WidgetView } from "./screenModel";
@@ -23,6 +24,7 @@ export interface RenderOptions {
 	nonce: string;
 	/** Project-relative path (e.g. `sdimages/a.png`) → webview URI, or undefined when the file is missing. */
 	imageUri: (relPath: string) => string | undefined;
+	builtinUri?: (id: string, panel: PanelId) => string | undefined;
 	title: string;
 	/** Preview-only state to restore (screen, panel, hidden widgets, z-order); sanitized before use. */
 	initialState?: unknown;
@@ -232,6 +234,7 @@ function layout() {
     band.style.height = g.bandHeight + 'px';
     band.style.display = g.bandHeight > 0 ? 'block' : 'none';
   });
+  document.querySelectorAll('img[data-uri7][data-uri12]').forEach(el => { el.src = state.panel === '12' ? el.dataset.uri12 : el.dataset.uri7; });
   document.querySelectorAll('#bar button[data-screen]').forEach(b => b.classList.toggle('on', b.dataset.screen === state.screen));
   document.querySelectorAll('#panels button').forEach(b => b.classList.toggle('on', b.dataset.panel === state.panel));
   applyView();
@@ -383,12 +386,24 @@ function renderEntry(s: ScreenView): string {
 	);
 }
 
+function renderPreviewWidget(w: WidgetView, opts: RenderOptions): string {
+	const html = renderWidget(w, opts);
+	const ref = w.typeName === "image" && w.image ? resolveImage(w.image, "") : undefined;
+	if (ref?.kind !== "builtin") return html;
+	const seven = opts.builtinUri?.(ref.id, "7");
+	const twelve = opts.builtinUri?.(ref.id, "12");
+	if (!seven || !twelve) return html.replace(/>([^<]*)<\/div>$/, ` title="${escapeHtml(BUILTIN_IMAGE_HINT)}">$1</div>`);
+	const uri = previewState.sanitize(opts.initialState).panel === "12" ? twelve : seven;
+	return html.replace(/^<div class="w placeholder"/, '<img class="w"')
+		.replace(/>[^<]*<\/div>$/, ` data-uri7="${escapeHtml(seven)}" data-uri12="${escapeHtml(twelve)}" src="${escapeHtml(uri)}" alt="">`);
+}
+
 function renderScreen(s: ScreenView, opts: RenderOptions): string {
 	const rows = buildWidgetRows(s).map(renderRow).join("");
 	return (
 		`<section class="screen" data-screen="${s.number}"><h3>${escapeHtml(screenTitle(s))}</h3>` +
 		renderEntry(s) +
-		`<div class="body"><div class="left"><div class="frame"><div class="canvas"><div class="content">${s.widgets.map((w) => renderWidget(w, opts)).join("")}` +
+		`<div class="body"><div class="left"><div class="frame"><div class="canvas"><div class="content">${s.widgets.map((w) => renderPreviewWidget(w, opts)).join("")}` +
 		`<div class="ovl hov"></div><div class="ovl sel"></div></div><div class="band" title="${escapeHtml(BAND_TIP)}"></div></div></div>` +
 		`<div class="insp">Hover or click a widget (or a list row) to inspect it.</div></div>` +
 		`<aside class="side"><div class="tools"><button data-act="showall" title="Show every hidden widget of this screen">Show all</button><button data-act="resetorder" title="Restore the authored paint order of this screen">Reset order</button><span class="note muted">Preview only, not saved to .rev.</span></div><table class="wlist"><thead><tr><th></th><th>Id</th><th>Type</th><th>Alias</th><th>x,y,w,h</th><th>Refs</th></tr></thead><tbody>${rows}</tbody></table></aside></div></section>`

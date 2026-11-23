@@ -6,6 +6,8 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { parseOpenMessage } from "../callmap/callContext";
 import { loadIriteProject } from "../irite";
+import { loadImageCache } from "../firmware/imageCache";
+import { builtinResolver } from "../firmware/imageResolver";
 import type { IriteProjectModel } from "../irite";
 import { previewState } from "../preview/previewState";
 import type { PreviewState } from "../preview/previewState";
@@ -14,6 +16,18 @@ import { buildScreenView } from "../preview/screenModel";
 import { parseRev } from "../rev";
 
 const VIEW_TYPE = "irite.previewScreens";
+
+/** Resolve symlinks before exposing a file to the webview. */
+function confinedFile(root: string, file: string): string | undefined {
+  try {
+    const base = fs.realpathSync(root);
+    const target = fs.realpathSync(file);
+    const relative = path.relative(base, target);
+    return relative && !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative) ? target : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function readText(p: string): string | undefined {
   try {
@@ -73,6 +87,7 @@ class ScreenPreview {
   private constructor(
     private readonly panel: vscode.WebviewPanel,
     private readonly revPath: string,
+    private readonly storageDir: string,
   ) {
     const dir = path.dirname(revPath);
     const schedule = (): void => {
@@ -95,7 +110,7 @@ class ScreenPreview {
     this.render();
   }
 
-  static open(revPath: string): void {
+  static open(revPath: string, storageDir: string): void {
     const key = revPath.toLowerCase();
     const existing = ScreenPreview.panels.get(key);
     if (existing) {
@@ -106,9 +121,9 @@ class ScreenPreview {
     const dir = path.dirname(revPath);
     const panel = vscode.window.createWebviewPanel(VIEW_TYPE, `Screens: ${path.basename(revPath)}`, vscode.ViewColumn.Beside, {
       enableScripts: true,
-      localResourceRoots: [vscode.Uri.file(dir)],
+      localResourceRoots: [vscode.Uri.file(dir), vscode.Uri.file(path.join(storageDir, "firmware-images"))],
     });
-    ScreenPreview.panels.set(key, new ScreenPreview(panel, revPath));
+    ScreenPreview.panels.set(key, new ScreenPreview(panel, revPath, storageDir));
   }
 
   private render(): void {
@@ -119,14 +134,22 @@ class ScreenPreview {
       this.project = fs.existsSync(mainSrc) ? loadIriteProject(mainSrc, readText) : undefined;
       const view = buildScreenView(rev, this.project);
       const webview = this.panel.webview;
+      const cacheRoot = path.join(this.storageDir, "firmware-images");
+      const cache = loadImageCache(this.storageDir, vscode.workspace.getConfiguration("irite.firmware").get<string>("imagesVersion", ""));
+      const toUri = (file: string): string => webview.asWebviewUri(vscode.Uri.file(file)).toString();
+      const resolveBuiltin = builtinResolver(cache, (file) => {
+        const confined = confinedFile(cacheRoot, file);
+        return confined ? toUri(confined) : "";
+      });
       this.panel.webview.html = renderScreensHtml(view, {
         cspSource: webview.cspSource,
         nonce: crypto.randomBytes(16).toString("base64"),
         title: path.basename(this.revPath),
         initialState: this.state,
+        builtinUri: resolveBuiltin,
         imageUri: (rel) => {
-          const abs = path.join(dir, rel);
-          return fs.existsSync(abs) ? webview.asWebviewUri(vscode.Uri.file(abs)).toString() : undefined;
+          const abs = confinedFile(path.join(dir, "sdimages"), path.join(dir, rel));
+          return abs ? toUri(abs) : undefined;
         },
       });
     } catch (e) {
@@ -162,7 +185,7 @@ export function registerPreviewCommands(context: vscode.ExtensionContext): void 
         void vscode.window.showErrorMessage("iRite: no .rev file found. Open a project containing main.rev.");
         return;
       }
-      ScreenPreview.open(rev);
+      ScreenPreview.open(rev, context.globalStorageUri.fsPath);
     }),
   );
 }

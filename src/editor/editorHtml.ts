@@ -6,6 +6,9 @@
  * validates them, owns the document and answers with `sync` messages holding the effective geometry.
  * Hide/show and z-order are preview-only view state (see `odd/reports/issue-6-screen-editor.md`, z-order).
  */
+import { BUILTIN_IMAGE_HINT } from "../firmware/imageCache";
+import { resolveImage } from "../rev";
+import type { imagePickerModel } from "./imagePicker";
 import { allGeometries, panelGeometry, PANELS } from "../preview/panels";
 import type { PanelId } from "../preview/panels";
 import { PREVIEW_STATE_SOURCE, previewState } from "../preview/previewState";
@@ -24,6 +27,8 @@ export interface EditorRenderOptions extends RenderOptions {
 	selected?: number | null;
 	/** File names of the project's `sdimages/` folder, for the image picker. */
 	images?: string[];
+	builtinUri?: (id: string, panel: PanelId) => string | undefined;
+	gallery?: ReturnType<typeof imagePickerModel>;
 	/** `main.iri` lines to add, change and remove for the session's edits (never written by the extension). */
 	hint?: IriHint;
 }
@@ -101,6 +106,9 @@ ${WIDGET_STYLE}
 .insp .ro{opacity:.7;}
 .insp button{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:1px solid var(--vscode-panel-border,#666);padding:2px 8px;margin-right:4px;cursor:pointer;}
 .tools{margin:0 0 4px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:11px;}
+.gallery{display:flex;flex-wrap:wrap;gap:4px;max-height:220px;overflow:auto;}
+.gallery button{display:flex;flex-direction:column;align-items:center;max-width:100px;overflow:hidden;}
+.gallery img{width:64px;height:48px;object-fit:contain;}
 `;
 
 const SCRIPT = `
@@ -112,7 +120,7 @@ const INIT = __INIT__;
 const PREFS = __PREFS__;
 const CAT = __CAT__;
 const PROPS = __PROPS__;
-const IMAGES = __IMAGES__;
+const GALLERY = __GALLERY__;
 const INITSEL = __INITSEL__;
 const saved = vscode.getState() || {};
 // View state (screen, panel, hidden, z-order) is preview-only; prefs (snap, grid) are per session. Edits are never kept here.
@@ -169,8 +177,10 @@ function layout() {
   document.querySelectorAll('#panels button').forEach(b => b.classList.toggle('on', b.dataset.panel === state.panel));
   document.getElementById('snap').checked = prefs.snap;
   document.getElementById('grid').value = String(prefs.grid);
+  document.querySelectorAll('img[data-uri7]').forEach(el => { el.src = state.panel === '12' ? el.dataset.uri12 : el.dataset.uri7; });
   applyView();
   refreshSelection();
+  syncInspector(true);
 }
 // Hidden widgets and z-order are view-only (not saved to .rev): ranks become z-index, overlays stay on top.
 function applyView() {
@@ -420,6 +430,22 @@ function fieldControl(id, def, f, val) {
   if (f.kind === 'image') a.list = 'sdimages';
   const i = mk('input', a); i.value = val;
   i.addEventListener('change', () => sendProp(id, f, i.value));
+  if (def.type === 7 && f.kind === 'image') {
+    const wrap = mk('div', {}); wrap.appendChild(i);
+    const gallery = mk('div', { class: 'gallery' });
+    const items = GALLERY.builtin.concat(GALLERY.files);
+    items.forEach(item => {
+      const b = mk('button', { type: 'button', title: item.value });
+      const uri = item.n ? (state.panel === '12' ? item.uri12 : item.uri7) : item.uri;
+      if (uri) b.appendChild(mk('img', { src: uri, alt: '' }));
+      b.appendChild(mk('span', {}, item.n ? '#' + item.n : item.value));
+      b.addEventListener('click', () => sendProp(id, f, item.value));
+      gallery.appendChild(b);
+    });
+    wrap.appendChild(gallery);
+    if (GALLERY.hint) wrap.appendChild(mk('div', { class: 'ro' }, GALLERY.hint));
+    return [wrap];
+  }
   return [i];
 }
 function syncInspector(force) {
@@ -519,7 +545,20 @@ function renderScreen(s: ScreenView, opts: EditorRenderOptions): string {
 	const rows = s.widgets.map(renderRow).join("");
 	const handles = HANDLES.map((h) => `<i class="h" data-h="${h}"></i>`).join("");
 	const widgets = s.widgets
-		.map((w) => renderWidget(w, opts).replace(/^<(\w+) /, (m, tag: string) => `<${tag} data-alias="${escapeHtml(w.alias ?? "")}" `))
+		.map((w) => {
+			let html = renderWidget(w, opts);
+			const ref = w.type === 7 && w.image ? resolveImage(w.image, "") : undefined;
+			if (ref?.kind === "builtin") {
+				const seven = opts.builtinUri?.(ref.id, "7");
+				const twelve = opts.builtinUri?.(ref.id, "12");
+				if (seven && twelve) {
+					html = html.replace(/^<div class="w placeholder"/, `<img class="w" data-uri7="${escapeHtml(seven)}" data-uri12="${escapeHtml(twelve)}" src="${escapeHtml(seven)}" alt=""`).replace(/>[^<]*<\/div>$/, ">");
+				} else {
+					html = html.replace(/^<div /, `<div title="${BUILTIN_IMAGE_HINT}" `);
+				}
+			}
+			return html.replace(/^<(\w+) /, (m, tag: string) => `<${tag} data-alias="${escapeHtml(w.alias ?? "")}" `);
+		})
 		.join("");
 	const field = (n: string, label: string): string => `<label>${label}<input type="number" step="1" name="${n}" disabled></label>`;
 	return (
@@ -614,7 +653,7 @@ ${sections}
 		.replace("__PREFS__", () => jsonForScript({ snap: !!opts.prefs.snap, grid }))
 		.replace("__CAT__", () => jsonForScript(catalogForPage()))
 		.replace("__PROPS__", () => jsonForScript(props))
-		.replace("__IMAGES__", () => jsonForScript((opts.images ?? []).filter((i) => typeof i === "string")))
+		.replace("__GALLERY__", () => jsonForScript(opts.gallery ?? { builtin: [], files: [], hint: BUILTIN_IMAGE_HINT }))
 		.replace("__INITSEL__", () => jsonForScript(typeof opts.selected === "number" ? opts.selected : null))}</script>
 </body></html>`;
 }

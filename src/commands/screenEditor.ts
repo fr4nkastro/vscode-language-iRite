@@ -26,6 +26,10 @@ import {
 	withEdits,
 } from "../editor/editState";
 import type { EditState } from "../editor/editState";
+import { imagePickerModel } from "../editor/imagePicker";
+import { loadImageCache } from "../firmware/imageCache";
+import { builtinResolver } from "../firmware/imageResolver";
+import { resolveImage } from "../rev";
 import { iriHint } from "../editor/iriHint";
 import type { IriHint } from "../editor/iriHint";
 import { DEFAULT_GRID, parseEditorMessage } from "../editor/messages";
@@ -125,6 +129,8 @@ function writeAtomic(target: string, bytes: Buffer): void {
 }
 
 class ScreenEditorProvider implements vscode.CustomEditorProvider<RevDocument> {
+	constructor(private readonly storageDir: string) {}
+
 	private readonly changeEmitter = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<RevDocument>>();
 	readonly onDidChangeCustomDocument = this.changeEmitter.event;
 
@@ -150,7 +156,7 @@ class ScreenEditorProvider implements vscode.CustomEditorProvider<RevDocument> {
 	}
 
 	resolveCustomEditor(document: RevDocument, panel: vscode.WebviewPanel): void {
-		panel.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.file(path.dirname(document.uri.fsPath))] };
+		panel.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.file(path.dirname(document.uri.fsPath)), vscode.Uri.file(path.join(this.storageDir, "firmware-images"))] };
 		document.panels.add(panel);
 		panel.onDidDispose(() => document.panels.delete(panel));
 		panel.webview.onDidReceiveMessage((m: unknown) => {
@@ -163,9 +169,20 @@ class ScreenEditorProvider implements vscode.CustomEditorProvider<RevDocument> {
 		try {
 			const dir = path.dirname(doc.uri.fsPath);
 			const webview = panel.webview;
+			const cache = loadImageCache(this.storageDir, vscode.workspace.getConfiguration("irite.firmware").get<string>("imagesVersion", ""));
+			const toUri = (p: string): string => webview.asWebviewUri(vscode.Uri.file(p)).toString();
+			const images = listImages(dir);
+			const fileUri = (name: string): string | undefined => {
+				const ref = resolveImage(name, dir);
+				if (ref.kind !== "file") return undefined;
+				const abs = path.join(dir, ref.relPath);
+				return fs.existsSync(abs) ? toUri(abs) : undefined;
+			};
 			webview.html = renderEditorHtml(buildScreenView(this.effective(doc), doc.project), {
 				selected: doc.selected,
-				images: listImages(dir),
+				images,
+				builtinUri: builtinResolver(cache, toUri),
+				gallery: imagePickerModel(cache, images, { builtinUri: toUri, fileUri }),
 				hint: this.hint(doc),
 				cspSource: webview.cspSource,
 				nonce: crypto.randomBytes(16).toString("base64"),
@@ -450,7 +467,7 @@ class ScreenEditorProvider implements vscode.CustomEditorProvider<RevDocument> {
 
 export function registerScreenEditor(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
-		vscode.window.registerCustomEditorProvider(VIEW_TYPE, new ScreenEditorProvider(), {
+		vscode.window.registerCustomEditorProvider(VIEW_TYPE, new ScreenEditorProvider(context.globalStorageUri.fsPath), {
 			webviewOptions: { retainContextWhenHidden: true },
 			supportsMultipleEditorsPerDocument: false,
 		}),
