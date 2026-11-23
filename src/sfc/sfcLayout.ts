@@ -12,6 +12,8 @@ export interface LayoutNode {
 	entryRoutine?: string;
 	file?: string;
 	line?: number;
+	/** True when the position comes from a saved manual layout. */
+	moved?: boolean;
 }
 
 export interface LayoutPoint {
@@ -35,6 +37,12 @@ export interface LayoutLink {
 	back: boolean;
 	global: boolean;
 	dashed: boolean;
+	/** Manual bend points between the source step and the bar (set by `mergeLayout`). */
+	before?: LayoutPoint[];
+	/** Manual bend points between the bar and the target step (set by `mergeLayout`). */
+	after?: LayoutPoint[];
+	/** True when the bar position was fixed by hand (otherwise it follows its source step). */
+	barFixed?: boolean;
 }
 
 export interface LayoutNote {
