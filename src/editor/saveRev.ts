@@ -12,7 +12,7 @@ import { computeConfigHash, readConfigHash, rewriteConfigHash } from "../rev/con
 import { RevWriteError, applyWidgetOps } from "../rev/serialize";
 import type { WidgetOp } from "../rev/serialize";
 import { tokenIndexOf } from "../rev/widgetCatalog";
-import { toPatches } from "./editState";
+import { toOps, toPatches } from "./editState";
 import type { EditState } from "./editState";
 
 export interface SavePlan {
@@ -146,5 +146,11 @@ export function geometryOps(rev: RevModel, state: EditState): WidgetOp[] {
  */
 export function planSave(original: Buffer, state: EditState): SavePlan | undefined {
 	const before = parseRev(original.toString("utf8"));
-	return planSaveOps(original, geometryOps(before, state));
+	return planSaveOps(original, toOps(before, state));
+}
+
+/** The model of the file as it would be written (no hash, nothing on disk): what the editor page shows. */
+export function effectiveRev(original: Buffer, ops: readonly WidgetOp[]): RevModel {
+	const text = applyWidgetOps(original.toString("latin1"), ops);
+	return parseRev(Buffer.from(text, "latin1").toString("utf8"));
 }
