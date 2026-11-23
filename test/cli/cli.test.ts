@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { fakeVersion } from "../firmware/cacheHelper";
@@ -72,6 +72,24 @@ describe("cli: screens / widgets", () => {
 });
 
 describe("cli firmware images", () => {
+	it("rejects explicitly requested unusable caches without producing output", () => {
+		const root = mkdtempSync(join(tmpdir(), "irite-cli-"));
+		try {
+			const empty = fakeVersion(root, "1.0", {});
+			const missingFile = fakeVersion(root, "2.0", { "7": [[9, 1, 1]] });
+			writeFileSync(join(missingFile, "manifest.json"), JSON.stringify({ images: { "7": { "10": {} } } }));
+			const invalid = fakeVersion(root, "3.0", {});
+			writeFileSync(join(invalid, "manifest.json"), "not json");
+			for (const dir of [join(root, "missing"), empty, missingFile, invalid, join(root, "firmware-images")]) {
+				const result = runCli(["render", rev, "--screen", "1", "--firmware-images", dir, "--out", "x.svg"], io);
+				expect(result.code).toBe(1);
+				expect(result.stderr).toBe(`Cannot load usable firmware images from ${dir}\n`);
+				expect(result.stdout).toBe("");
+				expect(result.out).toBeUndefined();
+			}
+		} finally { rmSync(root, { recursive: true, force: true }); }
+	});
+
 	it("resolves panel variants as file URIs and leaves missing images as placeholders", () => {
 		const root = mkdtempSync(join(tmpdir(), "irite-cli-"));
 		try {
@@ -84,6 +102,12 @@ describe("cli firmware images", () => {
 				expect(result.stderr).toBe("");
 				expect(result.stdout).toContain(pathToFileURL(join(cache, panel, "9.png")).toString());
 			}
+			const missing = runCli(["render", "sample.rev", "--screen", "1", "--firmware-images", cache], {
+				...mock, readText: (p) => p === "sample.rev" ? text.replace("local://9.png", "local://10.png") : undefined,
+			});
+			expect(missing.code).toBe(0);
+			expect(missing.stderr).toBe("");
+			expect(missing.stdout).toContain("local://10.png");
 			const absent = runCli(["render", "sample.rev", "--screen", "1"], mock);
 			expect(absent.code).toBe(0);
 			expect(absent.stderr).toBe("");

@@ -188,7 +188,9 @@ read stdout (for example `node <extension>/dist/rev-cli.js widgets main.rev
 --screen 2`). PNG is not produced (it needs a rasterizer dependency); convert
 the SVG with any tool, for example a browser or `rsvg-convert`. The optional
 firmware directory is either the `firmware-images` cache root or a specific
-version directory. Rendered built-ins use absolute `file:` URIs, not copies;
+version directory. An explicitly supplied directory must contain a usable image
+cache or render fails. Missing images in a usable cache remain placeholders.
+Rendered built-ins use absolute `file:` URIs, not copies;
 viewers may restrict local file access and the SVG is not portable without the
 cache. Generated project documentation uses the selected cache's 7-inch variant
 in the same way; regenerate it after importing.

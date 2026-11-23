@@ -7,6 +7,7 @@
  */
 import * as path from "node:path";
 import { builtinResolver, fileUri, loadCacheFromDir } from "../firmware/imageResolver";
+import { galleryModel } from "../firmware/imageCache";
 import { loadIriteProject } from "../irite";
 import type { IriteProjectModel } from "../irite";
 import { isPanelId, panelGeometry, scaleRect } from "../preview/panels";
@@ -37,6 +38,7 @@ export const USAGE = `Usage: rev-cli <command> <file.rev> [options]
   widgets <rev> [--screen n] [--panel 7|12]           Widgets in paint order, named props, boxes, overlaps, as JSON
   render  <rev> --screen n [--panel 7|12] [--out f] [--firmware-images dir]   Render a screen as SVG
 Each widget lists "props": its named properties from the widget catalog (type name in "typeName").
+An explicit --firmware-images directory must contain a usable image cache.
 Read-only: the .rev is never modified.
 `;
 
@@ -170,9 +172,17 @@ export function runCli(argv: string[], io: CliIo): CliResult {
 		const body = { file: path.basename(args.file), screens: wanted.map((s) => summarize(s, args.panel)) };
 		return { code: 0, stdout: JSON.stringify(body, null, 2) + "\n", stderr: "" };
 	}
+	let builtinImageUri: ReturnType<typeof builtinResolver> | undefined;
+	if (args.firmwareImages !== undefined) {
+		try {
+			const cache = loadCacheFromDir(path.resolve(args.firmwareImages));
+			if (cache && galleryModel(cache, args.panel).length > 0) builtinImageUri = builtinResolver(cache, fileUri);
+		} catch { /* Invalid or inaccessible cache. */ }
+		if (!builtinImageUri) return fail(1, `Cannot load usable firmware images from ${args.firmwareImages}`);
+	}
 	const svg = renderScreenSvg(wanted[0], {
 		panel: args.panel,
-		builtinImageUri: args.firmwareImages ? builtinResolver(loadCacheFromDir(path.resolve(args.firmwareImages)), fileUri) : undefined,
+		builtinImageUri,
 		imageData: (rel) => {
 			const abs = path.join(dir, rel);
 			const ext = path.extname(rel).slice(1).toLowerCase();
