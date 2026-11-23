@@ -86,12 +86,22 @@ export function planDbSave(original: Buffer, intended: DbSchema): DbSavePlan | u
    if (positions.some((p, i) => i > 0 && p !== positions[i - 1] + 1)) throw new Error("Ambiguous database block");
    at = positions[positions.length - 1] + 1;
   } else {
-   at = lines.findIndex(l => /^EDP\.[A-Z0-9.]+#\d+=/.test(l));
-   if (at < 0) throw new Error("Cannot establish database insertion boundary");
+   // Only classify families whose position and key prefix are evidenced; unknowns
+   // could belong on either side of the new block.
+   let following = false;
+   at = lines.length;
+   for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\r?\n$/.test(line)) continue;
+    const beforeDb = /^(?:SC|DIO)\.[A-Z0-9.]+#\d+=/.test(line);
+    const afterDb = /^(?:EDP|SP)\.[A-Z0-9.]+#\d+=/.test(line) || /^WDGT#\d+=/.test(line);
+    if ((!beforeDb && !afterDb) || (beforeDb && following)) throw new Error("Cannot establish database insertion boundary");
+    if (afterDb && !following) { at = i; following = true; }
+   }
   }
   const newline = lines[at]?.endsWith("\r\n") || (at > 0 && lines[at - 1].endsWith("\r\n")) ? "\r\n" : "\n";
-  if (at > 0 && !lines[at - 1].endsWith("\n")) throw new Error("Ambiguous database insertion boundary");
-  const insertion = added.map(t => `DB.SCHEMA#${t.index}=${value(t)}${newline}DB.ALIAS#${t.index}=${esc(t.name)}${newline}`).join("");
+  const separator = at > 0 && !lines[at - 1].endsWith("\n") ? newline : "";
+  const insertion = separator + added.map(t => `DB.SCHEMA#${t.index}=${value(t)}${newline}DB.ALIAS#${t.index}=${esc(t.name)}${newline}`).join("");
   // Replacements index the original lines, so apply them before inserting.
   const patched = lines.map((l, i) => replacements.get(i) ?? l);
   patched.splice(at, 0, insertion);

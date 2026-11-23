@@ -76,6 +76,27 @@ describe('database save plan', () => {
   expect(plan.bytes.toString()).toContain('DIO.X#1=x\r\nDB.SCHEMA#1=1,0,X,3,4\r\nDB.ALIAS#1=New\r\nEDP.ADDRESS#1=x');
   expect(() => validateDbReadback(plan.bytes, m)).not.toThrow();
  });
+ it('places the first database before widgets or at the end of a proven preceding or empty Config', () => {
+  for (const [body, expected] of [
+   ['\r\nDIO.X#1=x\r\nWDGT#1=4,x\r\n', '\r\nDIO.X#1=x\r\nDB.SCHEMA#1=1,0,X,3,4\r\nDB.ALIAS#1=New\r\nWDGT#1=4,x\r\n'],
+   ['\nDIO.X#1=x\n', '\nDIO.X#1=x\nDB.SCHEMA#1=1,0,X,3,4\nDB.ALIAS#1=New\n'],
+   ['', 'DB.SCHEMA#1=1,0,X,3,4\nDB.ALIAS#1=New\n'],
+   ['\r\n', '\r\nDB.SCHEMA#1=1,0,X,3,4\r\nDB.ALIAS#1=New\r\n'],
+  ]) {
+   const bytes = Buffer.from(`<Indicator><ConfigHash value="x"/><Config>${body}</Config></Indicator>`);
+   let m = createDbSchema(parseRev(bytes.toString()));
+   m = editDbSchema(m, { kind: 'addTable', name: 'New', maxRecords: 1 });
+   m = editDbSchema(m, { kind: 'addField', table: 1, name: 'X', typeCode: 3, size: 4 });
+   expect(planDbSave(bytes, m)!.bytes.toString()).toContain(`<Config>${expected}</Config>`);
+  }
+ });
+ it('rejects unknown families even when a following widget is present', () => {
+  const bytes = Buffer.from('<Indicator><ConfigHash value="x"/><Config>\nUNKNOWN#1=x\nWDGT#1=4,x\n</Config></Indicator>');
+  let m = createDbSchema(parseRev(bytes.toString()));
+  m = editDbSchema(m, { kind: 'addTable', name: 'New', maxRecords: 1 });
+  m = editDbSchema(m, { kind: 'addField', table: 1, name: 'X', typeCode: 3, size: 4 });
+  expect(() => planDbSave(bytes, m)).toThrow(/boundary/i);
+ });
  it('rejects ambiguous or unplaceable inputs', () => {
   const empty = Buffer.from('<Indicator><ConfigHash value="x"/><Config>\nUNKNOWN#1=x\n</Config></Indicator>');
   let m = createDbSchema(parseRev(empty.toString()));
