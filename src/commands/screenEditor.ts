@@ -28,7 +28,7 @@ import {
 import type { EditState } from "../editor/editState";
 import { imagePickerModel } from "../editor/imagePicker";
 import { loadImageCache } from "../firmware/imageCache";
-import { builtinResolver } from "../firmware/imageResolver";
+import { builtinResolver, confinedFile } from "../firmware/imageResolver";
 import { resolveImage } from "../rev";
 import { iriHint } from "../editor/iriHint";
 import type { IriHint } from "../editor/iriHint";
@@ -171,28 +171,32 @@ class ScreenEditorProvider implements vscode.CustomEditorProvider<RevDocument> {
 			const webview = panel.webview;
 			const cache = loadImageCache(this.storageDir, vscode.workspace.getConfiguration("irite.firmware").get<string>("imagesVersion", ""));
 			const toUri = (p: string): string => webview.asWebviewUri(vscode.Uri.file(p)).toString();
+			const builtinUri = (p: string): string => {
+				const file = confinedFile(path.join(this.storageDir, "firmware-images"), p);
+				return file ? toUri(file) : "";
+			};
+			const imageUri = (rel: string): string | undefined => {
+				const file = confinedFile(path.join(dir, "sdimages"), path.join(dir, rel));
+				return file ? toUri(file) : undefined;
+			};
 			const images = listImages(dir);
 			const fileUri = (name: string): string | undefined => {
 				const ref = resolveImage(name, dir);
 				if (ref.kind !== "file") return undefined;
-				const abs = path.join(dir, ref.relPath);
-				return fs.existsSync(abs) ? toUri(abs) : undefined;
+				return imageUri(ref.relPath);
 			};
 			webview.html = renderEditorHtml(buildScreenView(this.effective(doc), doc.project), {
 				selected: doc.selected,
 				images,
-				builtinUri: builtinResolver(cache, toUri),
-				gallery: imagePickerModel(cache, images, { builtinUri: toUri, fileUri }),
+				builtinUri: builtinResolver(cache, builtinUri),
+				gallery: imagePickerModel(cache, images, { builtinUri, fileUri }),
 				hint: this.hint(doc),
 				cspSource: webview.cspSource,
 				nonce: crypto.randomBytes(16).toString("base64"),
 				title: path.basename(doc.uri.fsPath),
 				initialState: doc.view,
 				prefs: doc.prefs,
-				imageUri: (rel) => {
-					const abs = path.join(dir, rel);
-					return fs.existsSync(abs) ? webview.asWebviewUri(vscode.Uri.file(abs)).toString() : undefined;
-				},
+				imageUri,
 			});
 		} catch (e) {
 			panel.webview.html = `<!DOCTYPE html><html><body>Could not render the screen editor.</body></html>`;

@@ -14,7 +14,9 @@ export function imagePickerModel(cache: ImageCache | null, files: string[], uri:
 			const a = seven.find((item) => item.n === n);
 			const b = twelve.find((item) => item.n === n);
 			const item = a ?? b!;
-			return { n, value: item.ref, width: item.width, height: item.height, ...(a ? { uri7: uri.builtinUri(a.path) } : {}), ...(b ? { uri12: uri.builtinUri(b.path) } : {}) };
+			const uri7 = a && uri.builtinUri(a.path);
+			const uri12 = b && uri.builtinUri(b.path);
+			return { n, value: item.ref, width: item.width, height: item.height, ...(uri7 ? { uri7 } : {}), ...(uri12 ? { uri12 } : {}) };
 		}),
 		files: files.map((value) => { const path = uri.fileUri(value); return path ? { value, uri: path } : { value }; }),
 		...(!cache?.selected ? { hint: BUILTIN_IMAGE_HINT } : {}),

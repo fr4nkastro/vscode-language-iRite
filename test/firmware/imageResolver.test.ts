@@ -1,9 +1,9 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadImageCache } from "../../src/firmware/imageCache";
-import { builtinResolver, fileUri, loadCacheFromDir, needsImportHint } from "../../src/firmware/imageResolver";
+import { builtinResolver, confinedFile, fileUri, loadCacheFromDir, needsImportHint } from "../../src/firmware/imageResolver";
 import { buildScreenView } from "../../src/preview/screenModel";
 import { parseRev } from "../../src/rev";
 import { fakeVersion } from "./cacheHelper";
@@ -14,6 +14,23 @@ beforeEach(() => {
 });
 afterEach(() => {
 	rmSync(tmp, { recursive: true, force: true });
+});
+
+describe("confinedFile", () => {
+	it("accepts files inside the root and rejects missing, outside and symlinked-outside targets", () => {
+		const root = join(tmp, "sdimages");
+		const outside = join(tmp, "outside");
+		mkdirSync(root);
+		mkdirSync(outside);
+		writeFileSync(join(root, "inside.png"), "inside");
+		writeFileSync(join(outside, "outside.png"), "outside");
+		symlinkSync(outside, join(root, "link"), process.platform === "win32" ? "junction" : "dir");
+		expect(confinedFile(root, join(root, "inside.png"))).toBe(join(root, "inside.png"));
+		expect(confinedFile(root, join(root, "missing.png"))).toBeUndefined();
+		expect(confinedFile(root, join(outside, "outside.png"))).toBeUndefined();
+		expect(confinedFile(root, join(root, "link", "outside.png"))).toBeUndefined();
+		expect(confinedFile(root, root)).toBeUndefined();
+	});
 });
 
 describe("builtinResolver", () => {

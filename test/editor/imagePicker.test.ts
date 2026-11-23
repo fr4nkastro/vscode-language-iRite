@@ -24,6 +24,12 @@ describe("imagePickerModel", () => {
 		expect(m.files).toEqual([{ value: "b.png", uri: "f:b.png" }, { value: "a.svg", uri: "f:a.svg" }]);
 		expect(m.hint).toBeUndefined();
 	});
+	it("keeps rejected builtin paths as placeholder options without blank URIs", () => {
+		fakeVersion(tmp, "1.0.0", { "7": [[1, 5, 6]], "12": [[1, 5, 6]] });
+		const m = imagePickerModel(loadImageCache(tmp), ["outside.png"], { builtinUri: () => "", fileUri: () => undefined });
+		expect(m.builtin).toEqual([{ n: 1, value: "local://1.png", width: 5, height: 6 }]);
+		expect(m.files).toEqual([{ value: "outside.png" }]);
+	});
 	it("shows the import hint and no built-in items when nothing is imported; sdimages still listed", () => {
 		const m = imagePickerModel(loadImageCache(tmp), ["x.png"], { builtinUri: toUri, fileUri: () => undefined });
 		expect(m.builtin).toEqual([]);

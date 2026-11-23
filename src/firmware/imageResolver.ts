@@ -1,8 +1,21 @@
-import { basename, dirname } from "node:path";
+import { realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { ScreensView } from "../preview/screenModel";
 import { loadImageCache, resolveBuiltinImage } from "./imageCache";
 import type { ImageCache, Panel } from "./imageCache";
+
+/** Resolve links before exposing a file to a webview. */
+export function confinedFile(root: string, file: string): string | undefined {
+	try {
+		const base = realpathSync(root);
+		const target = realpathSync(file);
+		const rel = relative(base, target);
+		return rel && rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel) ? target : undefined;
+	} catch {
+		return undefined;
+	}
+}
 
 export function builtinResolver(cache: ImageCache | null, convert: (path: string) => string): (id: string, panel: Panel) => string | undefined {
 	return (id, panel) => {
