@@ -41,14 +41,14 @@ describe("buildScreenView", () => {
 		const v = buildScreenView(rev, project(SRC));
 		const all = v.screens.flatMap((s) => s.widgets);
 		const lbl3 = all.find((w) => w.alias === "lbl3")!;
-		expect(lbl3.references).toEqual([{ file: "a.iri", line: 3, callee: "SetLabelText" }]);
+		expect(lbl3.references).toEqual([{ file: "a.iri", line: 3, callee: "SetLabelText", routine: "P" }]);
 		const lbl4 = all.find((w) => w.alias === "lbl4")!;
-		expect(lbl4.references).toEqual([{ file: "a.iri", line: 5, callee: "SetLabelText" }]);
+		expect(lbl4.references).toEqual([{ file: "a.iri", line: 5, callee: "SetLabelText", routine: "P" }]);
 	});
 	it("includes condition references and none without a project", () => {
 		const v = buildScreenView(rev, project(SRC.replace("IMIN", "imIn")));
 		const w = v.screens.flatMap((s) => s.widgets).find((x) => x.alias === "imIn")!;
-		expect(w.references).toContainEqual({ file: "a.iri", line: 7, callee: "(condition)" });
+		expect(w.references).toContainEqual({ file: "a.iri", line: 7, callee: "(condition)", routine: "P" });
 		const none = buildScreenView(rev);
 		expect(none.screens.every((s) => s.widgets.every((x) => x.references.length === 0))).toBe(true);
 	});

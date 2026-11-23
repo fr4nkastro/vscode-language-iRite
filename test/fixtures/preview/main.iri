@@ -1,0 +1,6 @@
+-- Generated aliases (trimmed fixture)
+bgWelcome   : constant integer := 1;
+imLoad      : constant integer := 2;
+lblTitle    : constant integer := 5;
+lblPlaca    : constant integer := 3;
+btnOk       : constant integer := 4;

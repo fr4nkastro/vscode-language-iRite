@@ -1,0 +1,15 @@
+type UiScreen is record
+    Welcome: integer;
+    Error: integer;
+    PlateEntry: integer;
+    Notification: integer;
+end record;
+
+type UiStatus is record
+    CurrentScreen: integer;
+    Screen: UiScreen;
+end record;
+
+g_tUiStatus: UiStatus;
+g_sPlate: string;
+g_iLast: integer;

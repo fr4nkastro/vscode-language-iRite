@@ -38,6 +38,8 @@ export interface IriteCall {
 	/** Raw argument text (whitespace-normalized), split on top-level commas. */
 	args: string[];
 	line: number;
+	/** Line of the closing parenthesis when the call spans several lines (additive). */
+	endLine?: number;
 	/**
 	 * Enclosing if/elsif/else conditions, outermost first.
 	 * - `if`/`elsif` branch: the branch's own condition text (earlier branches are NOT negated).
@@ -48,6 +50,21 @@ export interface IriteCall {
 	parameterless?: boolean;
 }
 
+/** A bare identifier used inside a routine body (not a call, not a field after `.`): arguments, conditions, assignments. */
+export interface IriteIdRef {
+	/** Identifier as written. */
+	name: string;
+	line: number;
+}
+
+/** `Path.To.Field := 12;` with a numeric literal on the right (used to resolve screen numbers). */
+export interface IriteLiteralAssign {
+	/** Dotted left-hand side as written, whitespace removed. */
+	target: string;
+	value: number;
+	line: number;
+}
+
 export interface IriteRoutine extends Located {
 	kind: 'procedure' | 'function' | 'handler';
 	name: string;
@@ -56,6 +73,10 @@ export interface IriteRoutine extends Located {
 	startLine: number;
 	endLine: number;
 	calls: IriteCall[];
+	/** Identifier uses in the body, one per name and line (additive; absent on hand-built routines). */
+	idRefs?: IriteIdRef[];
+	/** Numeric literal assignments in the body (additive; absent on hand-built routines). */
+	literalAssigns?: IriteLiteralAssign[];
 	/** Declaration without a body (forward/external). */
 	forward?: boolean;
 }

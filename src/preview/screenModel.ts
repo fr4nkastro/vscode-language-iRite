@@ -5,17 +5,26 @@
  */
 import type { IriteProjectModel } from "../irite";
 import type { RevDiagnostic, RevModel, RevWidget } from "../rev";
+import { groupReferences } from "./refGroups";
+import type { FileRefs } from "./refGroups";
 
 export interface WidgetReference {
 	file: string;
 	/** 1-based line. */
 	line: number;
-	/** Called routine, or `(condition)` when the alias appears in an enclosing if/elsif condition. */
+	/**
+	 * Called routine; `(condition)` when the alias is part of an if/elsif condition enclosing the call (reported
+	 * at the call's line); `(reference)` for any other use (plain comparison, assignment, continuation line).
+	 */
 	callee: string;
+	/** Routine whose body holds the reference. */
+	routine: string;
 }
 
 export interface WidgetView extends RevWidget {
 	references: WidgetReference[];
+	/** `references` grouped by file and routine. */
+	refGroups: FileRefs[];
 }
 
 export interface ScreenView {
@@ -45,7 +54,7 @@ function identifiers(s: string): Set<string> {
 	return out;
 }
 
-/** alias (lower-case) → references, from every call's args and conditions. */
+/** alias (lower-case) → references, from calls (args, conditions) and every other identifier use. */
 function indexReferences(project: IriteProjectModel | undefined, aliases: Set<string>): Map<string, WidgetReference[]> {
 	const index = new Map<string, WidgetReference[]>();
 	if (!project) {
@@ -53,26 +62,47 @@ function indexReferences(project: IriteProjectModel | undefined, aliases: Set<st
 	}
 	const add = (alias: string, ref: WidgetReference): void => {
 		const list = index.get(alias) ?? [];
-		if (!list.some((r) => r.file === ref.file && r.line === ref.line && r.callee === ref.callee)) {
+		if (!list.some((r) => r.file === ref.file && r.line === ref.line && r.callee === ref.callee && r.routine === ref.routine)) {
 			list.push(ref);
 		}
 		index.set(alias, list);
 	};
 	for (const routine of project.routines) {
+		const base = { file: routine.file, routine: routine.name };
+		/** alias → [first line, last line] spans already explained by a call or condition of this routine. */
+		const covered = new Map<string, Array<[number, number]>>();
+		const cover = (alias: string, from: number, to: number): void => {
+			const spans = covered.get(alias) ?? [];
+			spans.push([from, to]);
+			covered.set(alias, spans);
+		};
 		for (const call of routine.calls) {
+			const last = call.endLine ?? call.line;
 			for (const id of identifiers(call.args.join(","))) {
 				if (aliases.has(id)) {
-					add(id, { file: routine.file, line: call.line, callee: call.callee });
+					add(id, { ...base, line: call.line, callee: call.callee });
+					cover(id, call.line, last);
 				}
 			}
 			for (const id of identifiers(call.conditions.join(" "))) {
 				if (aliases.has(id)) {
-					add(id, { file: routine.file, line: call.line, callee: "(condition)" });
+					add(id, { ...base, line: call.line, callee: "(condition)" });
 				}
+			}
+		}
+		for (const ref of routine.idRefs ?? []) {
+			const id = ref.name.toLowerCase();
+			if (aliases.has(id) && !covered.get(id)?.some(([from, to]) => ref.line >= from && ref.line <= to)) {
+				add(id, { ...base, line: ref.line, callee: "(reference)" });
 			}
 		}
 	}
 	return index;
+}
+
+function dirOf(p: string): string {
+	const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+	return i < 0 ? "" : p.slice(0, i);
 }
 
 export function buildScreenView(rev: RevModel, project?: IriteProjectModel): ScreensView {
@@ -83,13 +113,15 @@ export function buildScreenView(rev: RevModel, project?: IriteProjectModel): Scr
 		}
 	}
 	const refs = indexReferences(project, aliases);
+	const root = project ? dirOf(project.mainSrc) : "";
 	const byScreen = new Map<number, WidgetView[]>();
 	for (const w of rev.widgets) {
 		if (w.screen === undefined) {
 			continue;
 		}
 		const list = byScreen.get(w.screen) ?? [];
-		list.push({ ...w, references: w.alias ? [...(refs.get(w.alias.toLowerCase()) ?? [])] : [] });
+		const references = w.alias ? [...(refs.get(w.alias.toLowerCase()) ?? [])] : [];
+		list.push({ ...w, references, refGroups: groupReferences(references, root) });
 		byScreen.set(w.screen, list);
 	}
 	const screens = [...byScreen.entries()]

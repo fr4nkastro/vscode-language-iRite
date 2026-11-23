@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<Indicator>
+  <Revision value="1.0.0.1" />
+  <IndicatorModel value="1280" />
+  <Config>WDGT#1=7,0,0,800,388,1,1,0,bg.png,1,bgWelcome
+WDGT#2=7,300,150,200,100,1,1,0,local://3.png,1,imLoad
+WDGT#3=4,10,10,200,30,Plate,1,1,14,Black,lblPlaca,2,0,0,1,12
+WDGT#4=7,600,300,150,60,1,1,0,local://4.png,12,btnOk
+WDGT#5=4,10,40,300,30,Title,1,1,18,Black,lblTitle,2,0,0,1,6
+WDGT#6=4,10,80,300,30,No alias here,1,1,18,Black,,2,0,0,1,12
+WDGT#7=7,0,0,800,388,1,1,0,bg.png,12,bgPlate
+</Config>
+</Indicator>
