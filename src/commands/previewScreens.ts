@@ -4,8 +4,11 @@ import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
+import { parseOpenMessage } from "../callmap/callContext";
 import { loadIriteProject } from "../irite";
 import type { IriteProjectModel } from "../irite";
+import { previewState } from "../preview/previewState";
+import type { PreviewState } from "../preview/previewState";
 import { renderScreensHtml } from "../preview/screenHtml";
 import { buildScreenView } from "../preview/screenModel";
 import { parseRev } from "../rev";
@@ -64,6 +67,8 @@ class ScreenPreview {
   private readonly watchers: vscode.Disposable[] = [];
   private timer: NodeJS.Timeout | undefined;
   private project: IriteProjectModel | undefined;
+  /** Preview-only state (screen, panel, hidden widgets, z-order): kept for the life of the panel, never written anywhere. */
+  private state: PreviewState = previewState.emptyState();
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
@@ -118,6 +123,7 @@ class ScreenPreview {
         cspSource: webview.cspSource,
         nonce: crypto.randomBytes(16).toString("base64"),
         title: path.basename(this.revPath),
+        initialState: this.state,
         imageUri: (rel) => {
           const abs = path.join(dir, rel);
           return fs.existsSync(abs) ? webview.asWebviewUri(vscode.Uri.file(abs)).toString() : undefined;
@@ -130,17 +136,18 @@ class ScreenPreview {
   }
 
   private onMessage(m: unknown): void {
-    const msg = m as { type?: string; file?: unknown; line?: unknown };
-    if (msg?.type !== "open" || typeof msg.file !== "string" || typeof msg.line !== "number") {
+    const msg = m as { type?: unknown; state?: unknown } | null | undefined;
+    if (msg?.type === "state") {
+      this.state = previewState.sanitize(msg.state);
       return;
     }
-    // Only open files that belong to the loaded project.
-    const known = this.project?.files.some((f) => path.normalize(f).toLowerCase() === path.normalize(msg.file as string).toLowerCase());
-    if (!known) {
+    // Only open files that belong to the loaded project, at a validated line.
+    const target = parseOpenMessage(this.project?.files ?? [], m);
+    if (!target) {
       return;
     }
-    const line = Math.max(0, Math.floor(msg.line) - 1);
-    void vscode.window.showTextDocument(vscode.Uri.file(msg.file), {
+    const line = target.line - 1;
+    void vscode.window.showTextDocument(vscode.Uri.file(target.file), {
       selection: new vscode.Range(line, 0, line, 0),
       viewColumn: vscode.ViewColumn.One,
     });

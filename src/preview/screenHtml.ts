@@ -1,8 +1,9 @@
 /** Pure HTML renderer for the screen preview webview (no `vscode` import). */
 import { resolveImage } from "../rev";
-import { DEFAULT_PANEL, PANELS, allGeometries, panelGeometry } from "./panels";
+import { PANELS, allGeometries, panelGeometry } from "./panels";
 import type { PanelId } from "./panels";
 import type { ScreenView, ScreensView, WidgetView } from "./screenModel";
+import { PREVIEW_STATE_SOURCE, previewState } from "./previewState";
 import { entryLabel, buildWidgetRows, screenTitle } from "./widgetList";
 
 /** Usable area of the authored 7" panel in pixels (800x480 minus the 92 px header; see `panels.ts`). */
@@ -12,6 +13,10 @@ const BAND_TIP =
 	'Letterbox band (assumption): scaling a 7" layout uniformly by 1.6 leaves this strip unused on a 12" panel. ' +
 	"The header height and the band position are unconfirmed on a real 12\" unit.";
 const SAMPLE_WEIGHT = "888888.1";
+const EYE_BTN =
+	'<button data-act="eye" title="Hide / show this widget (preview only, not saved)" aria-label="Hide or show widget">' +
+	'<svg viewBox="0 0 16 16"><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" fill="none" stroke="currentColor"/>' +
+	'<circle cx="8" cy="8" r="2" fill="currentColor"/><path class="slash" d="M2 14L14 2" stroke="currentColor" stroke-width="1.5"/></svg></button>';
 
 export interface RenderOptions {
 	cspSource: string;
@@ -19,6 +24,13 @@ export interface RenderOptions {
 	/** Project-relative path (e.g. `sdimages/a.png`) → webview URI, or undefined when the file is missing. */
 	imageUri: (relPath: string) => string | undefined;
 	title: string;
+	/** Preview-only state to restore (screen, panel, hidden widgets, z-order); sanitized before use. */
+	initialState?: unknown;
+}
+
+/** JSON safe to embed inside an inline script. */
+function jsonForScript(v: unknown): string {
+	return JSON.stringify(v).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
 }
 
 export function escapeHtml(s: string): string {
@@ -145,6 +157,14 @@ body:not(.single) .side,body:not(.single) .insp,body:not(.single) .entry{display
 .wlist tr.row:hover{background:var(--vscode-list-hoverBackground,#2a2d2e);}
 .wlist tr.row.sel{background:var(--vscode-list-activeSelectionBackground,#094771);color:var(--vscode-list-activeSelectionForeground,#fff);}
 .wlist td.r,.wlist td.n{text-align:right;}
+.wlist td.ctl{white-space:nowrap;}
+.wlist button,.tools button{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:1px solid var(--vscode-panel-border,#666);padding:0 5px;margin-right:2px;cursor:pointer;font-size:10px;line-height:16px;}
+.wlist button svg{width:12px;height:12px;vertical-align:middle;}
+.wlist .slash{display:none;}
+.wlist tr.hid .slash{display:inline;}
+.wlist tr.hid td:not(.ctl){opacity:.45;text-decoration:line-through;}
+.wlist tr.zf button[data-act=front],.wlist tr.zb button[data-act=back]{background:var(--vscode-button-background);color:var(--vscode-button-foreground);}
+.tools{margin:0 0 4px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:11px;}
 .insp{margin-top:8px;padding:6px;border:1px solid var(--vscode-panel-border,#666);font-size:12px;min-height:3em;max-width:100%;}
 .insp .t{font-weight:600;}
 .insp .grp{margin-top:6px;font-weight:600;}
@@ -156,11 +176,10 @@ body:not(.single) .side,body:not(.single) .insp,body:not(.single) .entry{display
 const SCRIPT = `
 const vscode = typeof acquireVsCodeApi === "function" ? acquireVsCodeApi() : { postMessage() {}, getState() { return undefined; }, setState() {} };
 const GEOM = __GEOM__;
-function clean(s) {
-  const o = s && typeof s === 'object' ? s : {};
-  return { screen: typeof o.screen === 'string' ? o.screen : 'all', panel: GEOM[o.panel] ? o.panel : '${DEFAULT_PANEL}' };
-}
-let state = clean(vscode.getState());
+const PS = __PS__;
+const INIT = __INIT__;
+// Preview-only state: kept by the webview (setState) and reported to the extension; never written to .rev.
+let state = PS.sanitize(vscode.getState() || INIT);
 const body = document.body;
 function layout() {
   const single = state.screen !== 'all';
@@ -189,8 +208,38 @@ function layout() {
   });
   document.querySelectorAll('#bar button[data-screen]').forEach(b => b.classList.toggle('on', b.dataset.screen === state.screen));
   document.querySelectorAll('#panels button').forEach(b => b.classList.toggle('on', b.dataset.panel === state.panel));
+  applyView();
 }
-function save() { vscode.setState(state); layout(); }
+// Hidden widgets and z-order overrides, per screen. Paint order = z-index rank; overlays stay above all ranks.
+function applyView() {
+  document.querySelectorAll('.screen').forEach(sec => {
+    const key = sec.dataset.screen;
+    const els = [...sec.querySelectorAll('.w')];
+    const rank = {};
+    PS.paintOrder(state, key, els.map(e => Number(e.dataset.id))).forEach((id, i) => { rank[id] = i + 1; });
+    const o = state.order[key];
+    let hid = 0;
+    els.forEach(el => {
+      const id = Number(el.dataset.id);
+      const h = PS.isHidden(state, key, id);
+      el.style.zIndex = String(rank[id]);
+      el.style.display = h ? 'none' : '';
+      if (h) hid++;
+      const row = sec.querySelector('tr.row[data-id="' + id + '"]');
+      if (row) {
+        row.classList.toggle('hid', h);
+        row.classList.toggle('zf', !!o && o.front.includes(id));
+        row.classList.toggle('zb', !!o && o.back.includes(id));
+      }
+    });
+    sec.querySelector('.tools .note').textContent = (hid ? hid + ' hidden. ' : '') + (o ? 'Z-order overridden. ' : '') + 'Preview only, not saved to .rev.';
+    if (sel && sel.sec === sec) {
+      const el = widgetEl(sec, sel.id);
+      place(sec.querySelector('.ovl.sel'), el);
+    }
+  });
+}
+function save() { vscode.setState(state); vscode.postMessage({ type: 'state', state }); layout(); }
 function select(s) { state = { ...state, screen: s }; save(); }
 document.querySelectorAll('#bar button[data-screen]').forEach(b => b.addEventListener('click', () => select(b.dataset.screen)));
 document.querySelectorAll('#panels button').forEach(b => b.addEventListener('click', () => { state = { ...state, panel: b.dataset.panel }; save(); }));
@@ -200,7 +249,7 @@ function widgetEl(sec, id) { return sec.querySelector('.w[data-id="' + id + '"]'
 function rowEl(sec, id) { return sec.querySelector('tr.row[data-id="' + id + '"]'); }
 // Hover/selection are separate overlay boxes: they never change a widget's paint order.
 function place(box, el) {
-  if (!el) { box.style.display = 'none'; return; }
+  if (!el || el.style.display === 'none') { box.style.display = 'none'; return; }
   const st = el.style;
   box.style.cssText = 'display:block;left:' + st.left + ';top:' + st.top + ';width:' + st.width + ';height:' + st.height + ';';
 }
@@ -264,6 +313,21 @@ document.querySelectorAll('.screen').forEach(sec => {
 });
 document.addEventListener('click', (e) => {
   const t = e.target;
+  const btn = t && t.closest ? t.closest('button[data-act]') : null;
+  if (btn) {
+    const sec = btn.closest('.screen');
+    const key = sec.dataset.screen;
+    const row = btn.closest('tr.row');
+    const id = row ? Number(row.dataset.id) : 0;
+    const act = btn.dataset.act;
+    if (act === 'eye') state = PS.toggleHidden(state, key, id);
+    else if (act === 'front') state = PS.bringToFront(state, key, id);
+    else if (act === 'back') state = PS.sendToBack(state, key, id);
+    else if (act === 'showall') state = PS.showAll(state, key);
+    else if (act === 'resetorder') state = PS.resetOrder(state, key);
+    save();
+    return;
+  }
   if (t && t.classList && t.classList.contains('open')) {
     vscode.postMessage({ type: 'open', file: t.dataset.file, line: Number(t.dataset.line) });
   }
@@ -275,7 +339,7 @@ layout();
 function renderRow(r: ReturnType<typeof buildWidgetRows>[number]): string {
 	const geo = [r.x, r.y, r.w, r.h].map((n) => (n === undefined ? "?" : String(n))).join(",");
 	return (
-		`<tr class="row" data-id="${r.id}"><td class="n">${r.id}</td><td>${escapeHtml(r.typeName)} (${r.type})</td>` +
+		`<tr class="row" data-id="${r.id}"><td class="ctl">${EYE_BTN}<button data-act="front" title="Bring to front (preview only, not saved)">&#9650;</button><button data-act="back" title="Send to back (preview only, not saved)">&#9660;</button></td><td class="n">${r.id}</td><td>${escapeHtml(r.typeName)} (${r.type})</td>` +
 		`<td>${escapeHtml(r.alias)}</td><td>${geo}</td><td class="r">${r.refCount}</td></tr>`
 	);
 }
@@ -301,7 +365,7 @@ function renderScreen(s: ScreenView, opts: RenderOptions): string {
 		`<div class="body"><div class="left"><div class="frame"><div class="canvas"><div class="content">${s.widgets.map((w) => renderWidget(w, opts)).join("")}` +
 		`<div class="ovl hov"></div><div class="ovl sel"></div></div><div class="band" title="${escapeHtml(BAND_TIP)}"></div></div></div>` +
 		`<div class="insp">Hover or click a widget (or a list row) to inspect it.</div></div>` +
-		`<aside class="side"><table class="wlist"><thead><tr><th>Id</th><th>Type</th><th>Alias</th><th>x,y,w,h</th><th>Refs</th></tr></thead><tbody>${rows}</tbody></table></aside></div></section>`
+		`<aside class="side"><div class="tools"><button data-act="showall" title="Show every hidden widget of this screen">Show all</button><button data-act="resetorder" title="Restore the authored paint order of this screen">Reset order</button><span class="note muted">Preview only, not saved to .rev.</span></div><table class="wlist"><thead><tr><th></th><th>Id</th><th>Type</th><th>Alias</th><th>x,y,w,h</th><th>Refs</th></tr></thead><tbody>${rows}</tbody></table></aside></div></section>`
 	);
 }
 
@@ -336,7 +400,9 @@ export function renderScreensHtml(view: ScreensView, opts: RenderOptions): strin
 ${empty}<div id="screens">
 ${sections}
 </div>
-<script nonce="${opts.nonce}">${SCRIPT.replace("__GEOM__", () => JSON.stringify(allGeometries()))}</script>
+<script nonce="${opts.nonce}">${SCRIPT.replace("__GEOM__", () => JSON.stringify(allGeometries()))
+		.replace("__PS__", () => PREVIEW_STATE_SOURCE)
+		.replace("__INIT__", () => jsonForScript(previewState.sanitize(opts.initialState)))}</script>
 </body></html>`;
 }
 
