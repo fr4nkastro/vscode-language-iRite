@@ -1,10 +1,15 @@
 /** Pure HTML renderer for the screen preview webview (no `vscode` import). */
 import { resolveImage } from "../rev";
+import { DEFAULT_PANEL, PANELS, allGeometries, panelGeometry } from "./panels";
+import type { PanelId } from "./panels";
 import type { ScreensView, WidgetView } from "./screenModel";
 
-/** Usable 1280 screen area in pixels (AGENTS.md: assumption, panel may be 800x480 with a header). */
-export const CANVAS_WIDTH = 800;
-export const CANVAS_HEIGHT = 388;
+/** Usable area of the authored 7" panel in pixels (800x480 minus the 92 px header; see `panels.ts`). */
+export const CANVAS_WIDTH = panelGeometry("7").canvasWidth;
+export const CANVAS_HEIGHT = panelGeometry("7").canvasHeight;
+const BAND_TIP =
+	'Letterbox band (assumption): scaling a 7" layout uniformly by 1.6 leaves this strip unused on a 12" panel. ' +
+	"The header height and the band position are unconfirmed on a real 12\" unit.";
 const SAMPLE_WEIGHT = "888888.1";
 
 export interface RenderOptions {
@@ -111,6 +116,9 @@ body.single .screen.sel{display:block;}
 .screen h3{margin:0 0 4px;font-size:12px;font-weight:normal;}
 .frame{position:relative;overflow:hidden;border:1px solid var(--vscode-panel-border,#666);}
 .canvas{position:absolute;left:0;top:0;width:${CANVAS_WIDTH}px;height:${CANVAS_HEIGHT}px;background:#fff;transform-origin:0 0;}
+.content{position:absolute;left:0;top:0;width:${CANVAS_WIDTH}px;height:${CANVAS_HEIGHT}px;transform-origin:0 0;}
+.band{position:absolute;left:0;display:none;background:repeating-linear-gradient(45deg,#e8e8e8,#e8e8e8 6px,#f6f6f6 6px,#f6f6f6 12px);border-top:1px dashed #999;box-sizing:border-box;}
+#panels{display:inline-flex;gap:4px;margin-left:8px;}
 .w{position:absolute;box-sizing:border-box;overflow:hidden;cursor:pointer;}
 .ovl{position:absolute;box-sizing:border-box;pointer-events:none;display:none;outline:2px solid #e91e63;z-index:1000000;}
 .ovl.hov{outline-style:dashed;outline-width:1px;}
@@ -128,25 +136,44 @@ body.single .screen.sel{display:block;}
 
 const SCRIPT = `
 const vscode = typeof acquireVsCodeApi === "function" ? acquireVsCodeApi() : { postMessage() {}, getState() { return undefined; }, setState() {} };
-const W = ${CANVAS_WIDTH}, H = ${CANVAS_HEIGHT};
-let state = vscode.getState() || { screen: 'all' };
+const GEOM = __GEOM__;
+function clean(s) {
+  const o = s && typeof s === 'object' ? s : {};
+  return { screen: typeof o.screen === 'string' ? o.screen : 'all', panel: GEOM[o.panel] ? o.panel : '${DEFAULT_PANEL}' };
+}
+let state = clean(vscode.getState());
 const body = document.body;
 function layout() {
   const single = state.screen !== 'all';
   body.classList.toggle('single', single);
+  const g = GEOM[state.panel];
   const avail = Math.max(200, document.documentElement.clientWidth - 20);
-  const scale = single ? Math.min(avail / W, 2) : Math.min(0.4, avail / W);
+  // Thumbnails keep the same width on both panels; the single view fits the window (never above 2x).
+  const scale = single ? Math.min(avail / g.canvasWidth, 2) : Math.min(320 / g.canvasWidth, avail / g.canvasWidth);
   document.querySelectorAll('.screen').forEach(s => {
     s.classList.toggle('sel', s.dataset.screen === state.screen);
     const f = s.querySelector('.frame');
-    f.style.width = Math.round(W * scale) + 'px';
-    f.style.height = Math.round(H * scale) + 'px';
-    f.firstElementChild.style.transform = 'scale(' + scale + ')';
+    f.style.width = Math.round(g.canvasWidth * scale) + 'px';
+    f.style.height = Math.round(g.canvasHeight * scale) + 'px';
+    const canvas = f.firstElementChild;
+    canvas.style.width = g.canvasWidth + 'px';
+    canvas.style.height = g.canvasHeight + 'px';
+    canvas.style.transform = 'scale(' + scale + ')';
+    const content = canvas.querySelector('.content');
+    content.style.transform = 'scale(' + g.scale + ')';
+    const band = canvas.querySelector('.band');
+    band.style.top = g.contentHeight + 'px';
+    band.style.width = g.canvasWidth + 'px';
+    band.style.height = g.bandHeight + 'px';
+    band.style.display = g.bandHeight > 0 ? 'block' : 'none';
   });
-  document.querySelectorAll('#bar button').forEach(b => b.classList.toggle('on', b.dataset.screen === state.screen));
+  document.querySelectorAll('#bar button[data-screen]').forEach(b => b.classList.toggle('on', b.dataset.screen === state.screen));
+  document.querySelectorAll('#panels button').forEach(b => b.classList.toggle('on', b.dataset.panel === state.panel));
 }
-function select(s) { state = { screen: s }; vscode.setState(state); layout(); }
-document.querySelectorAll('#bar button').forEach(b => b.addEventListener('click', () => select(b.dataset.screen)));
+function save() { vscode.setState(state); layout(); }
+function select(s) { state = { ...state, screen: s }; save(); }
+document.querySelectorAll('#bar button[data-screen]').forEach(b => b.addEventListener('click', () => select(b.dataset.screen)));
+document.querySelectorAll('#panels button').forEach(b => b.addEventListener('click', () => { state = { ...state, panel: b.dataset.panel }; save(); }));
 document.querySelectorAll('.screen h3').forEach(h => h.addEventListener('click', () => select(h.parentElement.dataset.screen)));
 let pinned = null;
 // Hover/selection are separate overlay boxes: they never change a widget's paint order.
@@ -200,9 +227,12 @@ export function renderScreensHtml(view: ScreensView, opts: RenderOptions): strin
 		.map(
 			(s) =>
 				`<section class="screen" data-screen="${s.number}"><h3>Screen ${s.number} - ${s.widgets.length} widgets</h3>` +
-				`<div class="frame"><div class="canvas">${s.widgets.map((w) => renderWidget(w, opts)).join("")}<div class="ovl hov"></div><div class="ovl sel"></div></div></div></section>`,
+				`<div class="frame"><div class="canvas"><div class="content">${s.widgets.map((w) => renderWidget(w, opts)).join("")}<div class="ovl hov"></div><div class="ovl sel"></div></div><div class="band" title="${escapeHtml(BAND_TIP)}"></div></div></div></section>`,
 		)
 		.join("\n");
+	const panelButtons = (Object.keys(PANELS) as PanelId[])
+		.map((id) => `<button data-panel="${id}" title="Preview panel size (not saved to .rev)">${escapeHtml(PANELS[id].label)}</button>`)
+		.join("");
 	const diagTitle = view.diagnostics.map((d) => `line ${d.line}: ${d.message}`).join("\n");
 	const diag = `<span id="diag" title="${escapeHtml(diagTitle)}">${view.diagnostics.length} diagnostics</span>`;
 	const empty = view.screens.length ? "" : `<p>No widgets with a screen number were found in this .rev.</p>`;
@@ -213,12 +243,12 @@ export function renderScreensHtml(view: ScreensView, opts: RenderOptions): strin
 <title>${escapeHtml(opts.title)}</title>
 <style>${STYLE}</style></head>
 <body class="single">
-<div id="bar">${buttons}${diag}</div>
+<div id="bar">${buttons}<span id="panels">${panelButtons}</span>${diag}</div>
 ${empty}<div id="screens">
 ${sections}
 </div>
 <div id="inspector">Hover or click a widget to inspect it.</div>
-<script nonce="${opts.nonce}">${SCRIPT}</script>
+<script nonce="${opts.nonce}">${SCRIPT.replace("__GEOM__", () => JSON.stringify(allGeometries()))}</script>
 </body></html>`;
 }
 
