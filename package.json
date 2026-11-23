@@ -130,6 +130,16 @@
 				"description": "Grafcet-style diagram of the STATES/TRANSITIONS state machine (read-only)"
 			},
 			{
+				"command": "irite.dbAccess.scaffold",
+				"title": "iRite: Scaffold DB Access Routines",
+				"description": "Append stubs (marked TODO(irite-db): pending implementation) for the missing standard DB access routines of each table"
+			},
+			{
+				"command": "irite.dbAccess.exportPending",
+				"title": "iRite: Export Pending DB Routines (JSON)",
+				"description": "Write the missing and pending DB access routines as JSON for an MCP/agent (schema irite.dbAccess.pending v1)"
+			},
+			{
 				"command": "irite.generateDocs",
 				"title": "iRite: Generate Project Docs",
 				"description": "Write Markdown documentation (ERD, SFC, screens, routines) to docs/generated/ (never touches .rev or sources)"
@@ -157,6 +167,38 @@
 					"type": "string",
 					"default": "C:\\Program Files (x86)\\Rice Lake Weighing Systems\\Revolution\\iRite Editor\\Compilers",
 					"description": "Path to the Compilers folder, as seen by the engine (Windows-style path, even under Wine on Linux/macOS)"
+				},
+				"irite.dbAccess.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Warn on every database table that lacks the standard access routines (create/read/update/delete, record, per-field getters and setters, search)."
+				},
+				"irite.dbAccess.severity": {
+					"type": "string",
+					"default": "Warning",
+					"enum": ["Error", "Warning", "Information", "Hint"],
+					"description": "Severity of the missing/pending DB access routines diagnostic."
+				},
+				"irite.dbAccess.routinePrefix": {
+					"type": "string",
+					"default": "db",
+					"description": "Prefix of the expected routine names: <prefix><Table><Operation> (dbTransGetInWeight). May be empty (TransGetInWeight)."
+				},
+				"irite.dbAccess.exclusions": {
+					"type": "array",
+					"items": { "type": "string" },
+					"default": [],
+					"markdownDescription": "Tables or groups the standard does not apply to. `Settings` excludes a whole table; `Settings:search` one group; `*:setters` a group of every table. Groups: `crud`, `record`, `getters`, `setters`, `search`. Case-insensitive."
+				},
+				"irite.dbAccess.moduleFolder": {
+					"type": "string",
+					"default": "src/db",
+					"description": "Project-relative folder where the scaffold writes one module per table (<Table>.iri)."
+				},
+				"irite.dbAccess.exportPath": {
+					"type": "string",
+					"default": ".irite/db-pending.json",
+					"description": "Project-relative file written by 'iRite: Export Pending DB Routines (JSON)'."
 				},
 				"irite.sfc.statesEnum": {
 					"type": "string",

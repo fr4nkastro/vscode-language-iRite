@@ -123,6 +123,42 @@ named Standby/Idle/Init, else the first one).
 
 Both diagrams are read-only and refresh when the sources or `.rev` change.
 
+### Database access routines (IPESAH standard)
+
+Every `type X is database ("Table") ... end database;` is expected to come with
+a fixed set of routines (the first field is the key; every routine returns a
+`SysCode`; `db` is the configurable prefix):
+
+| Group | Routine |
+| --- | --- |
+| `crud` | `dbTableCreate(<all fields>)`, `dbTableRead(key)`, `dbTableUpdate(<all fields>)`, `dbTableDelete(key)` |
+| `record` | `dbTableGetRecord(key; var vRecord: TableDatabase)` |
+| `getters` | `dbTableGet<Field>(key; var vValue: <type>)` per field |
+| `setters` | `dbTableSet<Field>(key; value: <type>)` per field |
+| `search` | `dbTableSearch(sColumn: string; sValue: string; var vResult: integer)` |
+
+-   A Warning on the `type ... is database` line lists the missing routines
+    (`Table Trans: missing routines dbTransGetNetW, ...`). Adding a field adds
+    its getter and setter to the list. Names are matched case-insensitively.
+-   Quick Fix **Scaffold N missing DB routine(s)** (or **iRite: Scaffold DB
+    Access Routines**) appends compilable stubs to `src/db/<Table>.iri` and adds
+    `#include src\db\<Table>.iri` to `main.src` right after the file that
+    declares the table (skipped when already present). Existing routines are
+    never overwritten or duplicated. Each stub returns `SysInvalidRequest`
+    and carries `-- TODO(irite-db): pending implementation`; the warning
+    stays until that line is removed. Check that callers come after the
+    module in the `#include` order.
+-   **iRite: Export Pending DB Routines (JSON)** writes
+    `.irite/db-pending.json` (schema `irite.dbAccess.pending`, `version: 1`):
+    one item per missing/pending routine with table, field, group, routine,
+    signature, description, status, stub file/line and scaffold target. Another
+    extension or an MCP can call the command `irite.dbAccess.exportPending`
+    with `{ "mainSrc": "<path>" }` to get the same JSON back without writing.
+
+Settings: `irite.dbAccess.enabled`, `severity` (default Warning),
+`routinePrefix` (default `db`), `exclusions` (`"Settings"`, `"Settings:search"`,
+`"*:setters"`), `moduleFolder` (default `src/db`) and `exportPath`.
+
 ### Project documentation
 
 Run **iRite: Generate Project Docs**. It writes Markdown documentation of the
