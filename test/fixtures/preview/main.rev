@@ -9,5 +9,6 @@ WDGT#4=7,600,300,150,60,1,1,0,local://4.png,12,btnOk
 WDGT#5=4,10,40,300,30,Title,1,1,18,Black,lblTitle,2,0,0,1,6
 WDGT#6=4,10,80,300,30,No alias here,1,1,18,Black,,2,0,0,1,12
 WDGT#7=7,0,0,800,388,1,1,0,bg.png,12,bgPlate
+WDGT#8=4,10,10,100,20,Other,1,1,12,Black,lblOther,2,0,0,1,9
 </Config>
 </Indicator>

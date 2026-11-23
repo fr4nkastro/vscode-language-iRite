@@ -2,7 +2,8 @@
 import { resolveImage } from "../rev";
 import { DEFAULT_PANEL, PANELS, allGeometries, panelGeometry } from "./panels";
 import type { PanelId } from "./panels";
-import type { ScreensView, WidgetView } from "./screenModel";
+import type { ScreenView, ScreensView, WidgetView } from "./screenModel";
+import { entryLabel, buildWidgetRows, screenTitle } from "./widgetList";
 
 /** Usable area of the authored 7" panel in pixels (800x480 minus the 92 px header; see `panels.ts`). */
 export const CANVAS_WIDTH = panelGeometry("7").canvasWidth;
@@ -97,7 +98,8 @@ function renderWidget(w: WidgetView, opts: RenderOptions): string {
 		w: w.width ?? null,
 		h: w.height ?? null,
 		raw: w.raw,
-		refs: w.references,
+		count: w.references.length,
+		groups: w.refGroups,
 	};
 	const style = `left:${x}px;top:${y}px;width:${px(width, 0)}px;height:${px(height, 0)}px;${extra}`;
 	const open = `<${tag} class="${cls}" data-id="${w.id}" style="${style}" data-info="${escapeHtml(JSON.stringify(info))}"${attrs}`;
@@ -129,9 +131,26 @@ body.single .screen.sel{display:block;}
 .symbol{border:2px solid #888;border-radius:50%;}
 .placeholder{border:1px dashed #888;background:#eee;color:#555;font-size:11px;word-break:break-all;}
 .unknown{background:repeating-linear-gradient(45deg,#ccc,#ccc 4px,#eee 4px,#eee 8px);border:1px solid #999;}
-#inspector{margin-top:8px;padding:6px;border:1px solid var(--vscode-panel-border,#666);font-size:12px;min-height:3em;}
-#inspector a{color:var(--vscode-textLink-foreground);cursor:pointer;display:block;}
-#inspector code{white-space:pre-wrap;word-break:break-all;}
+.entry{margin:0 0 6px;font-size:12px;}
+.entry a,.insp a{color:var(--vscode-textLink-foreground);cursor:pointer;}
+.muted{opacity:.7;}
+.body{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;}
+.left{flex:0 0 auto;}
+.side{flex:1 1 300px;min-width:280px;max-height:560px;overflow:auto;}
+body:not(.single) .side,body:not(.single) .insp,body:not(.single) .entry{display:none;}
+.wlist{width:100%;border-collapse:collapse;font-size:11px;}
+.wlist th{text-align:left;position:sticky;top:0;background:var(--vscode-editor-background,#1e1e1e);font-weight:600;}
+.wlist td,.wlist th{padding:2px 6px;white-space:nowrap;}
+.wlist tr.row{cursor:pointer;}
+.wlist tr.row:hover{background:var(--vscode-list-hoverBackground,#2a2d2e);}
+.wlist tr.row.sel{background:var(--vscode-list-activeSelectionBackground,#094771);color:var(--vscode-list-activeSelectionForeground,#fff);}
+.wlist td.r,.wlist td.n{text-align:right;}
+.insp{margin-top:8px;padding:6px;border:1px solid var(--vscode-panel-border,#666);font-size:12px;min-height:3em;max-width:100%;}
+.insp .t{font-weight:600;}
+.insp .grp{margin-top:6px;font-weight:600;}
+.insp .rt{margin-left:8px;opacity:.85;}
+.insp a.site{display:block;margin-left:20px;}
+.insp code{white-space:pre-wrap;word-break:break-all;}
 `;
 
 const SCRIPT = `
@@ -149,7 +168,8 @@ function layout() {
   const g = GEOM[state.panel];
   const avail = Math.max(200, document.documentElement.clientWidth - 20);
   // Thumbnails keep the same width on both panels; the single view fits the window (never above 2x).
-  const scale = single ? Math.min(avail / g.canvasWidth, 2) : Math.min(320 / g.canvasWidth, avail / g.canvasWidth);
+  const room = single && avail >= 900 ? avail - 340 : avail;
+  const scale = single ? Math.min(room / g.canvasWidth, 2) : Math.min(320 / g.canvasWidth, avail / g.canvasWidth);
   document.querySelectorAll('.screen').forEach(s => {
     s.classList.toggle('sel', s.dataset.screen === state.screen);
     const f = s.querySelector('.frame');
@@ -175,42 +195,115 @@ function select(s) { state = { ...state, screen: s }; save(); }
 document.querySelectorAll('#bar button[data-screen]').forEach(b => b.addEventListener('click', () => select(b.dataset.screen)));
 document.querySelectorAll('#panels button').forEach(b => b.addEventListener('click', () => { state = { ...state, panel: b.dataset.panel }; save(); }));
 document.querySelectorAll('.screen h3').forEach(h => h.addEventListener('click', () => select(h.parentElement.dataset.screen)));
-let pinned = null;
+let sel = null;
+function widgetEl(sec, id) { return sec.querySelector('.w[data-id="' + id + '"]'); }
+function rowEl(sec, id) { return sec.querySelector('tr.row[data-id="' + id + '"]'); }
 // Hover/selection are separate overlay boxes: they never change a widget's paint order.
 function place(box, el) {
   if (!el) { box.style.display = 'none'; return; }
   const st = el.style;
   box.style.cssText = 'display:block;left:' + st.left + ';top:' + st.top + ';width:' + st.width + ';height:' + st.height + ';';
 }
-function boxes(el) { const c = el.closest('.canvas'); return { hov: c.querySelector('.ovl.hov'), sel: c.querySelector('.ovl.sel') }; }
-function show(el) {
+function fmt(n, k) { return n === null || n === undefined ? '?' : String(Math.round(n * k * 10) / 10); }
+function show(sec, el) {
   const i = JSON.parse(el.dataset.info);
-  const box = document.getElementById('inspector');
+  const box = sec.querySelector('.insp');
   box.textContent = '';
-  const line = (t) => { const d = document.createElement('div'); d.textContent = t; box.appendChild(d); };
-  line('#' + i.id + ' - ' + i.typeName + ' (type ' + i.type + ')' + (i.alias ? ' - ' + i.alias : ''));
-  line('x=' + i.x + ' y=' + i.y + ' w=' + i.w + ' h=' + i.h);
+  const add = (cls, t) => { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = t; box.appendChild(d); return d; };
+  add('t', '#' + i.id + ' - ' + i.typeName + ' (type ' + i.type + ')' + (i.alias ? ' - ' + i.alias : ''));
+  add('', 'x=' + fmt(i.x, 1) + ' y=' + fmt(i.y, 1) + ' w=' + fmt(i.w, 1) + ' h=' + fmt(i.h, 1));
+  const k = GEOM[state.panel].scale;
+  if (k !== 1) add('muted', 'On this panel (x' + k + '): x=' + fmt(i.x, k) + ' y=' + fmt(i.y, k) + ' w=' + fmt(i.w, k) + ' h=' + fmt(i.h, k));
   const c = document.createElement('code'); c.textContent = i.raw.join(','); box.appendChild(c);
-  line(i.refs.length ? 'Code references (' + i.refs.length + '):' : 'No code references.');
-  i.refs.forEach(r => {
-    const a = document.createElement('a');
-    a.textContent = r.callee + ' - ' + r.file.split(/[\\\\/]/).pop() + ':' + r.line;
-    a.addEventListener('click', () => vscode.postMessage({ type: 'open', file: r.file, line: r.line }));
-    box.appendChild(a);
+  add('', i.count ? 'Code references (' + i.count + '):' : 'No code references.');
+  i.groups.forEach(g => {
+    add('grp', g.label + ' (' + g.count + ')');
+    g.routines.forEach(r => {
+      add('rt', r.routine);
+      r.sites.forEach(s => {
+        const a = document.createElement('a');
+        a.className = 'open site';
+        a.dataset.file = g.file;
+        a.dataset.line = String(s.line);
+        a.textContent = 'line ' + s.line + ' - ' + s.callee;
+        box.appendChild(a);
+      });
+    });
   });
 }
-document.querySelectorAll('.w').forEach(el => {
-  el.addEventListener('mouseenter', () => { place(boxes(el).hov, el); if (!pinned) show(el); });
-  el.addEventListener('mouseleave', () => place(boxes(el).hov, null));
-  el.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (pinned) place(boxes(pinned).sel, null);
-    pinned = el; place(boxes(el).sel, el); show(el);
+function clearSelection() {
+  if (!sel) return;
+  place(sel.sec.querySelector('.ovl.sel'), null);
+  const r = rowEl(sel.sec, sel.id);
+  if (r) r.classList.remove('sel');
+  sel = null;
+}
+function selectWidget(sec, id, scroll) {
+  const el = widgetEl(sec, id);
+  if (!el) return;
+  clearSelection();
+  sel = { sec, id };
+  place(sec.querySelector('.ovl.sel'), el);
+  const r = rowEl(sec, id);
+  if (r) { r.classList.add('sel'); if (scroll) r.scrollIntoView({ block: 'nearest' }); }
+  show(sec, el);
+}
+document.querySelectorAll('.screen').forEach(sec => {
+  sec.querySelectorAll('.w').forEach(el => {
+    const id = el.dataset.id;
+    el.addEventListener('mouseenter', () => { place(sec.querySelector('.ovl.hov'), el); if (!sel || sel.sec !== sec) show(sec, el); });
+    el.addEventListener('mouseleave', () => place(sec.querySelector('.ovl.hov'), null));
+    el.addEventListener('click', (e) => { e.stopPropagation(); selectWidget(sec, id, true); });
   });
+  sec.querySelectorAll('tr.row').forEach(r => {
+    const id = r.dataset.id;
+    r.addEventListener('mouseenter', () => place(sec.querySelector('.ovl.hov'), widgetEl(sec, id)));
+    r.addEventListener('mouseleave', () => place(sec.querySelector('.ovl.hov'), null));
+    r.addEventListener('click', () => selectWidget(sec, id, false));
+  });
+});
+document.addEventListener('click', (e) => {
+  const t = e.target;
+  if (t && t.classList && t.classList.contains('open')) {
+    vscode.postMessage({ type: 'open', file: t.dataset.file, line: Number(t.dataset.line) });
+  }
 });
 window.addEventListener('resize', layout);
 layout();
 `;
+
+function renderRow(r: ReturnType<typeof buildWidgetRows>[number]): string {
+	const geo = [r.x, r.y, r.w, r.h].map((n) => (n === undefined ? "?" : String(n))).join(",");
+	return (
+		`<tr class="row" data-id="${r.id}"><td class="n">${r.id}</td><td>${escapeHtml(r.typeName)} (${r.type})</td>` +
+		`<td>${escapeHtml(r.alias)}</td><td>${geo}</td><td class="r">${r.refCount}</td></tr>`
+	);
+}
+
+function renderEntry(s: ScreenView): string {
+	const label = entryLabel(s);
+	if (!s.entry || !label) {
+		return "";
+	}
+	const e = s.entry;
+	return (
+		`<div class="entry">Click handler: ` +
+		`<a class="open" data-file="${escapeHtml(e.dispatchFile)}" data-line="${e.dispatchLine}" title="Where ${escapeHtml(e.handler)} dispatches this screen">${escapeHtml(e.handler)}</a> -&gt; ` +
+		`<a class="open" data-file="${escapeHtml(e.file)}" data-line="${e.line}" title="Open ${escapeHtml(e.routine)}">${escapeHtml(e.routine)}</a></div>`
+	);
+}
+
+function renderScreen(s: ScreenView, opts: RenderOptions): string {
+	const rows = buildWidgetRows(s).map(renderRow).join("");
+	return (
+		`<section class="screen" data-screen="${s.number}"><h3>${escapeHtml(screenTitle(s))}</h3>` +
+		renderEntry(s) +
+		`<div class="body"><div class="left"><div class="frame"><div class="canvas"><div class="content">${s.widgets.map((w) => renderWidget(w, opts)).join("")}` +
+		`<div class="ovl hov"></div><div class="ovl sel"></div></div><div class="band" title="${escapeHtml(BAND_TIP)}"></div></div></div>` +
+		`<div class="insp">Hover or click a widget (or a list row) to inspect it.</div></div>` +
+		`<aside class="side"><table class="wlist"><thead><tr><th>Id</th><th>Type</th><th>Alias</th><th>x,y,w,h</th><th>Refs</th></tr></thead><tbody>${rows}</tbody></table></aside></div></section>`
+	);
+}
 
 export function renderScreensHtml(view: ScreensView, opts: RenderOptions): string {
 	const csp = [
@@ -221,15 +314,11 @@ export function renderScreensHtml(view: ScreensView, opts: RenderOptions): strin
 	].join("; ");
 	const buttons = [
 		`<button data-screen="all">All screens</button>`,
-		...view.screens.map((s) => `<button data-screen="${s.number}">Screen ${s.number} (${s.widgets.length})</button>`),
+		...view.screens.map(
+			(s) => `<button data-screen="${s.number}">Screen ${s.number}${s.names.length ? " " + escapeHtml(s.names.join("/")) : ""} (${s.widgets.length})</button>`,
+		),
 	].join("");
-	const sections = view.screens
-		.map(
-			(s) =>
-				`<section class="screen" data-screen="${s.number}"><h3>Screen ${s.number} - ${s.widgets.length} widgets</h3>` +
-				`<div class="frame"><div class="canvas"><div class="content">${s.widgets.map((w) => renderWidget(w, opts)).join("")}<div class="ovl hov"></div><div class="ovl sel"></div></div><div class="band" title="${escapeHtml(BAND_TIP)}"></div></div></div></section>`,
-		)
-		.join("\n");
+	const sections = view.screens.map((sc) => renderScreen(sc, opts)).join("\n");
 	const panelButtons = (Object.keys(PANELS) as PanelId[])
 		.map((id) => `<button data-panel="${id}" title="Preview panel size (not saved to .rev)">${escapeHtml(PANELS[id].label)}</button>`)
 		.join("");
@@ -247,7 +336,6 @@ export function renderScreensHtml(view: ScreensView, opts: RenderOptions): strin
 ${empty}<div id="screens">
 ${sections}
 </div>
-<div id="inspector">Hover or click a widget to inspect it.</div>
 <script nonce="${opts.nonce}">${SCRIPT.replace("__GEOM__", () => JSON.stringify(allGeometries()))}</script>
 </body></html>`;
 }
