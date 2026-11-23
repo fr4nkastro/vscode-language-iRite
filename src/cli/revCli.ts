@@ -15,6 +15,7 @@ import { buildScreenView } from "../preview/screenModel";
 import type { ScreenView } from "../preview/screenModel";
 import { findOverlaps, isBackdrop, outOfBounds, widgetBox } from "../preview/widgetBox";
 import { parseRev } from "../rev";
+import { widgetTypeDef } from "../rev/widgetCatalog";
 
 export interface CliIo {
 	readText(p: string): string | undefined;
@@ -32,8 +33,9 @@ export interface CliResult {
 
 export const USAGE = `Usage: rev-cli <command> <file.rev> [options]
   screens <rev>                                       List screens (number, names, widget count) as JSON
-  widgets <rev> [--screen n] [--panel 7|12]           Widgets in paint order, boxes, overlaps, as JSON
+  widgets <rev> [--screen n] [--panel 7|12]           Widgets in paint order, named props, boxes, overlaps, as JSON
   render  <rev> --screen n [--panel 7|12] [--out f]   Render a screen as SVG (same geometry as the preview)
+Each widget lists "props": its named properties from the widget catalog (type name in "typeName").
 Read-only: the .rev is never modified.
 `;
 
@@ -95,6 +97,10 @@ function summarize(s: ScreenView, panel: PanelId) {
 			id: w.id,
 			type: w.type,
 			typeName: w.typeName,
+			/** Catalog name of the type (null for a type the catalog does not know). */
+			catalogName: widgetTypeDef(w.type)?.name ?? null,
+			/** Named properties by catalog field name, raw token strings (empty for unknown types). */
+			props: w.props,
 			alias: w.alias ?? null,
 			text: w.text ?? null,
 			image: w.image ?? null,
