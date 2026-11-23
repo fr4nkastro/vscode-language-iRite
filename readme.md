@@ -9,6 +9,7 @@ Code. It supports:
 -   Preprocessing
 -   Compiling
 -   Deployment to Indicator
+-   Opt-in database schema editing with backup and generated `main.iri` hints
 
 Installation
 ============
@@ -195,6 +196,20 @@ Rendered built-ins use absolute `file:` URIs, not copies;
 viewers may restrict local file access and the SVG is not portable without the
 cache. Generated project documentation uses the selected cache's 7-inch variant
 in the same way; regenerate it after importing.
+
+### Database schema editor (opt-in)
+
+Run **iRite: Edit Database Schema** for the project containing `main.src` and
+`main.rev`. Add, rename, delete or reorder tables and fields, edit type codes,
+sizes and record limits, then explicitly save. Every save requires confirmation,
+backs up the original, refuses a stale file, recomputes `ConfigHash` and checks
+the written schema. Unknown type codes are preserved and cannot be edited.
+Limits and type/size combinations remain unconfirmed; verify the resulting file
+in Revolution and on a test indicator before production.
+
+The editor never writes `main.iri`: after saving, regenerate it in Revolution or
+use the displayed declarations and constants. Renames, deletions and field order
+changes can break existing code and DB access routines; review both carefully.
 
 ### Database diagram (ERD)
 

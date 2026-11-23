@@ -152,6 +152,11 @@
 				"description": "Opt-in editor for the 1280 screens: move and resize widgets and save x/y/width/height back into the .rev (a backup is written first)"
 			},
 			{
+				"command": "irite.editDatabaseSchema",
+				"title": "iRite: Edit Database Schema",
+				"description": "Opt-in database schema editor for the project's .rev (backup first)"
+			},
+			{
 				"command": "irite.showErd",
 				"title": "iRite: Show Database Diagram",
 				"description": "Entity-relationship diagram of the iRite databases and the .rev schema (read-only)"
