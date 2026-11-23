@@ -103,3 +103,17 @@ Rollback: the previous bytes are in `main.rev.bak` (or the timestamped sibling) 
 ## Scratch paths
 
 Scratch lived in the session scratchpad (`dole.rev` copy, generated HTML, Edge profile, smoke work dir) and `/tmp/spk` (hash experiments); the DOLE copy, Edge profiles, smoke work dir and `/tmp/spk` were removed; only small throw-away scripts remain in the session scratchpad.
+
+## Independent verification (read-only verifier, after 38df405)
+
+Verdict: **no blockers**. Typecheck clean, 332/332 tests, compile builds both bundles. Every S# passes except S2 (pass as a documented deviation: z-order not persisted) and S9 (unverifiable here: needs Revolution + a test 1280).
+
+Adversarial serializer probes on a scratch DOLE copy: duplicate edited id → refused; missing id → refused; escaped text with commas, LF-only file, missing BOM, first widget on the `<Config>` line → handled; size patch on type 1 / short type 6 line → refused; 1e9, non-integer, NaN → refused. Unmodified DOLE round-trips byte-identically and `CustomHash` still matches.
+
+Non-blocking follow-ups for the reviewer:
+- `saveCustomDocumentAs` does no stale-disk check, writes no backup of an existing destination, and uses `destination.fsPath` (wrong for non-`file` schemes).
+- Backup uses `fs.copyFileSync` without `COPYFILE_EXCL`: a narrow exists→copy race could overwrite a backup.
+- A leftover `main.rev.irite-tmp` after a hard kill is not git-ignored (a later save overwrites it).
+- Hot-exit restore re-applies stored absolute geometry even if the `.rev` changed on disk meanwhile (only the edited lines change, but external geometry edits to those widgets would be replaced).
+- `patchToken` drops surrounding whitespace of a changed token (harmless).
+- Suggested regression tests: duplicate `WDGT#1` + patch → `RevWriteError`; Save As onto the source path behaves as save with backup; save with existing `main.rev.bak` and stamped backup → both untouched, new name created.
