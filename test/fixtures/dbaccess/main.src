@@ -1,0 +1,9 @@
+program main;
+
+--Generated
+#include main.iri
+-- DB access
+#include src\db\Trans.iri
+
+begin
+end main;
