@@ -13,11 +13,19 @@ import { escapeHtml, renderWidget, WIDGET_STYLE } from "../preview/screenHtml";
 import type { RenderOptions } from "../preview/screenHtml";
 import type { ScreensView, ScreenView } from "../preview/screenModel";
 import { screenTitle } from "../preview/widgetList";
+import { WIDGET_TYPES, paletteTypes } from "../rev/widgetCatalog";
 import { EDITOR_MATH_SOURCE } from "./editorMath";
+import type { IriHint } from "./iriHint";
 import { DEFAULT_GRID } from "./messages";
 
 export interface EditorRenderOptions extends RenderOptions {
 	prefs: { snap: boolean; grid: number };
+	/** Widget selected after a rebuild of the page (an edit that adds, deletes or changes fields). */
+	selected?: number | null;
+	/** File names of the project's `sdimages/` folder, for the image picker. */
+	images?: string[];
+	/** `main.iri` lines to add, change and remove for the session's edits (never written by the extension). */
+	hint?: IriHint;
 }
 
 const CANVAS_WIDTH = panelGeometry("7").canvasWidth;
@@ -79,6 +87,19 @@ ${WIDGET_STYLE}
 .wlist td.n{text-align:right;}
 .wlist button,.tools button{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:1px solid var(--vscode-panel-border,#666);padding:0 5px;margin-right:2px;cursor:pointer;font-size:10px;line-height:16px;}
 .wlist tr.hid td:not(.ctl){opacity:.45;text-decoration:line-through;}
+#palette{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:0 0 6px;font-size:12px;}
+#palette button{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:1px solid var(--vscode-panel-border,#666);padding:2px 8px;cursor:grab;}
+#palette .legacy{font-size:11px;opacity:.7;flex:1 0 100%;}
+#notice{min-height:1.2em;font-size:12px;color:var(--vscode-errorForeground,#f66);margin:0 0 4px;}
+#irihint,#refs{border:1px solid var(--vscode-panel-border,#666);padding:4px 8px;margin:0 0 8px;font-size:12px;}
+#irihint pre,#refs pre{margin:4px 0;font-family:var(--vscode-editor-font-family,monospace);white-space:pre-wrap;}
+.insp{font-size:12px;margin-bottom:8px;}
+.insp .row{display:flex;gap:6px;align-items:center;margin:2px 0;}
+.insp .row label{flex:0 0 8.5em;opacity:.85;}
+.insp .row input[type=text],.insp .row input[type=number],.insp .row select{flex:1 1 auto;min-width:0;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border,#666);}
+.insp .row input[type=color]{flex:0 0 2.2em;padding:0;}
+.insp .ro{opacity:.7;}
+.insp button{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:1px solid var(--vscode-panel-border,#666);padding:2px 8px;margin-right:4px;cursor:pointer;}
 .tools{margin:0 0 4px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:11px;}
 `;
 
@@ -89,6 +110,10 @@ const PS = __PS__;
 const EM = __EM__;
 const INIT = __INIT__;
 const PREFS = __PREFS__;
+const CAT = __CAT__;
+const PROPS = __PROPS__;
+const IMAGES = __IMAGES__;
+const INITSEL = __INITSEL__;
 const saved = vscode.getState() || {};
 // View state (screen, panel, hidden, z-order) is preview-only; prefs (snap, grid) are per session. Edits are never kept here.
 let state = PS.sanitize(saved.view || INIT);
@@ -106,6 +131,7 @@ document.querySelectorAll('.w').forEach(el => {
 });
 const screens = [...document.querySelectorAll('.screen')];
 if (!screens.some(s => s.dataset.screen === state.screen) && screens.length) state = { ...state, screen: screens[0].dataset.screen };
+if (INITSEL !== null && GEO[INITSEL]) { const s0 = secOf(INITSEL); if (s0) { state = { ...state, screen: s0.dataset.screen }; sel = { id: INITSEL }; } }
 function persist() { vscode.setState({ view: state, prefs }); }
 function saveView() { persist(); vscode.postMessage({ type: 'state', state }); layout(); }
 function savePrefs() { persist(); vscode.postMessage({ type: 'prefs', snap: prefs.snap, grid: prefs.grid }); }
@@ -181,6 +207,10 @@ function showGeo(id) {
     f.querySelector('[name=y]').value = fmt(g.y);
     f.querySelector('[name=w]').value = fmt(g.w);
     f.querySelector('[name=h]').value = fmt(g.h);
+    [['x', g.x], ['y', g.y], ['width', g.w], ['height', g.h]].forEach(p => {
+      const i = document.querySelector('.insp [data-f="' + p[0] + '"]');
+      if (i && p[1] !== null && p[1] !== undefined) i.value = String(p[1]);
+    });
   }
 }
 function setEl(id, g) {
@@ -218,9 +248,11 @@ function refreshSelection() {
   f.querySelector('.sel-title').textContent = sel ? '#' + sel.id + ' - ' + (widgetEl(sec, sel.id).dataset.alias || 'no alias') + (SIZED[sel.id] ? '' : ' (position only: this widget type stores no size)') : 'Select a widget: click it, or pick a row.';
   if (sel) { const r = rowEl(sec, sel.id); if (r) r.classList.add('sel'); showGeo(sel.id); }
   placeOverlay();
+  syncInspector(false);
 }
 function select(id, scroll) {
   sel = id === null ? null : { id };
+  vscode.postMessage({ type: 'select', id });
   refreshSelection();
   if (sel && scroll) { const r = rowEl(curSec(), id); if (r) r.scrollIntoView({ block: 'nearest' }); }
 }
@@ -285,6 +317,7 @@ document.addEventListener('keydown', e => {
   if (drag && e.key === 'Escape') { endDrag(e, true); return; }
   const t = e.target;
   if (!sel || (t && t.closest && t.closest('input,textarea,button,select')) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Delete') { e.preventDefault(); vscode.postMessage({ type: 'delete', id: sel.id }); return; }
   const g = GEO[sel.id];
   if (g.x === null || g.y === null) return;
   const n = EM.nudge({ x: g.x, y: g.y, w: g.w || 0, h: g.h || 0 }, e.key, e.shiftKey, prefs.grid);
@@ -335,6 +368,138 @@ window.addEventListener('message', ev => {
     if (r) r.classList.toggle('edited', !!m.edited && m.edited.indexOf(Number(k)) >= 0);
   });
 });
+// Property inspector: typed inputs from the catalog; the extension validates and applies every change.
+let inspFor;
+function mk(tag, attrs, text) {
+  const n = document.createElement(tag);
+  Object.keys(attrs || {}).forEach(k => n.setAttribute(k, attrs[k]));
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+function extraOf(def, tokens) { return (def.type === 4 || def.type === 11) && tokens.length > def.tokenCount ? tokens.length - def.tokenCount : 0; }
+function valueOf(def, tokens, f) {
+  const extra = extraOf(def, tokens);
+  if (extra && f.index === 5) return tokens.slice(5, 6 + extra).join(',');
+  const v = tokens[f.index > 5 ? f.index + extra : f.index];
+  return v === undefined ? '' : v;
+}
+function sendProp(id, f, raw) {
+  if (f.kind === 'int' || f.kind === 'enum') {
+    if (String(raw).trim() === '' || !Number.isFinite(Number(raw))) { syncInspector(true); return; }
+    vscode.postMessage({ type: 'setProp', id, field: f.name, value: Number(raw) });
+  } else vscode.postMessage({ type: 'setProp', id, field: f.name, value: String(raw) });
+}
+function fieldControl(id, def, f, val) {
+  const attrs = { 'data-f': f.name };
+  if (f.kind === 'enum' && f.values) {
+    const s = mk('select', attrs);
+    let hit = false;
+    f.values.forEach(v => { const o = mk('option', { value: String(v.value) }, v.value + ' - ' + v.label); if (String(v.value) === val) { o.selected = true; hit = true; } s.appendChild(o); });
+    if (!hit) { const o = mk('option', { value: val }, val + ' (raw)'); o.selected = true; s.appendChild(o); }
+    s.addEventListener('change', () => sendProp(id, f, s.value));
+    return [s];
+  }
+  if (f.kind === 'int') {
+    const a = Object.assign({ type: 'number', step: '1' }, attrs);
+    if (f.role !== 'x' && f.role !== 'y' && f.min !== undefined) a.min = String(f.min);
+    if (f.max !== undefined) a.max = String(f.max);
+    const i = mk('input', a); i.value = val;
+    i.addEventListener('change', () => sendProp(id, f, i.value));
+    return [i];
+  }
+  if (f.kind === 'color') {
+    const t = mk('input', Object.assign({ type: 'text', list: 'colornames' }, attrs)); t.value = val;
+    const c = mk('input', { type: 'color', title: 'Pick a color' });
+    c.value = /^#[0-9a-fA-F]{6}$/.test(val) ? val.toLowerCase() : '#000000';
+    t.addEventListener('change', () => sendProp(id, f, t.value));
+    c.addEventListener('change', () => { t.value = c.value.toUpperCase(); sendProp(id, f, t.value); });
+    return [t, c];
+  }
+  const a = Object.assign({ type: 'text' }, attrs);
+  if (f.maxLength) a.maxlength = String(f.maxLength);
+  if (f.kind === 'image') a.list = 'sdimages';
+  const i = mk('input', a); i.value = val;
+  i.addEventListener('change', () => sendProp(id, f, i.value));
+  return [i];
+}
+function syncInspector(force) {
+  const id = sel ? sel.id : null;
+  if (!force && id === inspFor) return;
+  inspFor = id;
+  document.querySelectorAll('.insp').forEach(n => n.replaceChildren());
+  const sec = curSec();
+  const info = id === null ? null : PROPS[id];
+  if (!sec || !info) return;
+  const box = sec.querySelector('.insp');
+  const def = CAT[info.type];
+  box.appendChild(mk('div', { class: 'sel-title' }, 'Properties of #' + id + (def ? ' - ' + def.name : ' - unknown type ' + info.type)));
+  if (!def) {
+    box.appendChild(mk('div', { class: 'ro' }, 'Raw tokens (read only): ' + info.tokens.join(',')));
+  } else {
+    def.fields.forEach(f => {
+      if (f.index === 0) return;
+      const val = valueOf(def, info.tokens, f);
+      const row = mk('div', { class: 'row' });
+      row.appendChild(mk('label', {}, f.name));
+      if (f.kind === 'alias' && !def.aliasPersisted) { row.appendChild(mk('span', { class: 'ro' }, 'not stored in the .rev')); box.appendChild(row); return; }
+      if (!f.editable || f.kind === 'screen') { row.appendChild(mk('span', { class: 'ro' }, val + ' (fixed)')); box.appendChild(row); return; }
+      if (f.kind === 'alias') {
+        const i = mk('input', { type: 'text', maxlength: '8', 'data-f': 'alias' }); i.value = val;
+        i.addEventListener('change', () => vscode.postMessage({ type: 'renameAlias', id, alias: i.value }));
+        row.appendChild(i);
+      } else fieldControl(id, def, f, val).forEach(n => row.appendChild(n));
+      box.appendChild(row);
+    });
+    if (!def.hasAlias) box.appendChild(mk('div', { class: 'ro' }, 'This widget type has no alias.'));
+    else if (!def.aliasPersisted) box.appendChild(mk('div', { class: 'ro' }, 'Its alias (' + def.aliasPrefix + id + ') is derived from the id and is not stored in the .rev, but it appears in main.iri.'));
+  }
+  const del = mk('button', { 'data-act2': 'delete', title: 'Delete this widget (Delete key)' }, 'Delete widget');
+  del.addEventListener('click', () => vscode.postMessage({ type: 'delete', id }));
+  const refs = mk('button', { title: 'Show where code uses this widget alias' }, 'Show code references');
+  refs.addEventListener('click', () => vscode.postMessage({ type: 'requestRefs', id }));
+  const bar = mk('div', {}); bar.appendChild(del); bar.appendChild(refs); box.appendChild(bar);
+}
+// Palette: drag an item onto the canvas (drop point in authored 7" pixels, snapped) or click it to add near the corner.
+let dragType = null;
+function screenNo() { const n = Number(state.screen); return Number.isInteger(n) && n >= 1 && n <= 99 ? n : 1; }
+document.querySelectorAll('#palette button[data-wtype]').forEach(b => {
+  b.addEventListener('dragstart', e => { dragType = Number(b.dataset.wtype); if (e.dataTransfer) { e.dataTransfer.setData('text/plain', 'irite-widget:' + dragType); e.dataTransfer.effectAllowed = 'copy'; } });
+  b.addEventListener('dragend', () => { dragType = null; });
+  b.addEventListener('click', () => vscode.postMessage({ type: 'add', widgetType: Number(b.dataset.wtype), x: EM.snap(24, gridNow()), y: EM.snap(24, gridNow()), screen: screenNo() }));
+});
+document.querySelectorAll('.frame').forEach(fr => {
+  fr.addEventListener('dragover', e => { if (dragType !== null) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; } });
+  fr.addEventListener('drop', e => {
+    if (dragType === null) return;
+    e.preventDefault();
+    const c = fr.querySelector('.content');
+    const r = c.getBoundingClientRect();
+    const k = r.width / c.offsetWidth;
+    const t = dragType;
+    dragType = null;
+    vscode.postMessage({ type: 'add', widgetType: t, x: EM.snap((e.clientX - r.left) / k, gridNow()), y: EM.snap((e.clientY - r.top) / k, gridNow()), screen: screenNo() });
+  });
+});
+function showRefs(m) {
+  const box = document.getElementById('refs');
+  box.replaceChildren();
+  if (!m.alias) { box.hidden = true; return; }
+  box.hidden = false;
+  box.appendChild(mk('strong', {}, 'Code references of ' + m.alias + ': ' + m.total));
+  if (!m.total) box.appendChild(mk('div', {}, 'No uses found in the iRite sources of this project.'));
+  (m.groups || []).forEach(g => {
+    const lines = [g.label + ' (' + g.count + ')'];
+    g.routines.forEach(r => r.sites.forEach(s => lines.push('  ' + r.routine + ' line ' + s.line + ': ' + s.callee)));
+    box.appendChild(mk('pre', {}, lines.join(String.fromCharCode(10))));
+  });
+}
+// Authoritative notices from the extension: rejected edits (the inspector goes back to the real values) and references.
+window.addEventListener('message', ev => {
+  const m = ev.data;
+  if (!m) return;
+  if (m.type === 'notice') { document.getElementById('notice').textContent = String(m.text || ''); syncInspector(true); }
+  else if (m.type === 'refs') showRefs(m);
+});
 window.addEventListener('resize', layout);
 layout();
 `;
@@ -362,9 +527,44 @@ function renderScreen(s: ScreenView, opts: EditorRenderOptions): string {
 		`<div class="body"><div class="left"><div class="frame"><div class="canvas"><div class="content">${widgets}` +
 		`<div class="ovl sel">${handles}</div></div><div class="band"></div></div></div>` +
 		`<div class="fields"><div class="sel-title muted">Select a widget: click it, or pick a row.</div>${field("x", "x")}${field("y", "y")}${field("w", "w")}${field("h", "h")}</div></div>` +
-		`<aside class="side"><div class="tools"><button data-act="showall" title="Show every hidden widget of this screen">Show all</button><button data-act="resetorder" title="Restore the paint order of this screen">Reset order</button><span class="note muted"></span></div>` +
+		`<aside class="side"><div class="insp"></div><div class="tools"><button data-act="showall" title="Show every hidden widget of this screen">Show all</button><button data-act="resetorder" title="Restore the paint order of this screen">Reset order</button><span class="note muted"></span></div>` +
 		`<table class="wlist"><thead><tr><th></th><th>Id</th><th>Type</th><th>Alias</th><th>x,y,w,h</th></tr></thead><tbody>${rows}</tbody></table></aside></div></section>`
 	);
+}
+
+function renderPalette(): string {
+	const items = paletteTypes()
+		.map((t) => `<button type="button" draggable="true" data-wtype="${t.type}" title="Drag onto the canvas, or click to add near the top left corner. ${escapeHtml(t.versionNote)}">${escapeHtml(t.name)}</button>`)
+		.join("");
+	return `<div id="palette"><strong>Add widget:</strong>${items}<span class="legacy">The Numeric widget (type 5, legacy 920i) is not offered: Revolution converts it into a Label on load.</span></div>`;
+}
+
+function renderHint(h: IriHint | undefined): string {
+	if (!h || h.add.length + h.change.length + h.remove.length === 0) {
+		return "";
+	}
+	const lines = [
+		...h.add.map((l) => `+ ${l}`),
+		...h.change.flatMap((c) => [`- ${c.old}`, `+ ${c.new}`]),
+		...h.remove.map((l) => `- ${l}`),
+	];
+	return `<div id="irihint"><strong>main.iri</strong> (never edited by this extension; Revolution regenerates it). In the "-- Widget Aliases" block: + add / - remove or replace.<pre>${escapeHtml(lines.join("\n"))}</pre></div>`;
+}
+
+function catalogForPage(): Record<number, unknown> {
+	const out: Record<number, unknown> = {};
+	for (const t of WIDGET_TYPES) {
+		out[t.type] = {
+			type: t.type,
+			name: t.name,
+			tokenCount: t.tokenCount,
+			hasAlias: t.hasAlias,
+			aliasPersisted: t.aliasPersisted,
+			aliasPrefix: t.aliasPrefix ?? null,
+			fields: t.fields.map((f) => ({ index: f.index, name: f.name, kind: f.kind, role: f.role ?? null, min: f.min ?? null, max: f.max ?? null, maxLength: f.maxLength ?? null, editable: f.editable, values: f.values ?? null })),
+		};
+	}
+	return out;
 }
 
 export function renderEditorHtml(view: ScreensView, opts: EditorRenderOptions): string {
@@ -382,6 +582,12 @@ export function renderEditorHtml(view: ScreensView, opts: EditorRenderOptions): 
 		.join("");
 	const empty = view.screens.length ? "" : `<p>No widgets with a screen number were found in this .rev.</p>`;
 	const sections = view.screens.map((sc) => renderScreen(sc, opts)).join("\n");
+	const props: Record<number, { type: number; tokens: string[] }> = {};
+	for (const sc of view.screens) {
+		for (const w of sc.widgets) {
+			props[w.id] = { type: w.type, tokens: w.tokens };
+		}
+	}
 	const grid = Number.isInteger(opts.prefs.grid) && opts.prefs.grid >= 1 && opts.prefs.grid <= 200 ? opts.prefs.grid : DEFAULT_GRID;
 	return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
@@ -391,7 +597,13 @@ export function renderEditorHtml(view: ScreensView, opts: EditorRenderOptions): 
 <style>${STYLE}</style></head>
 <body class="single">
 <div id="bar">${buttons}<span id="panels">${panelButtons}</span><label><input type="checkbox" id="snap"> Snap</label><label>Grid <input type="number" id="grid" min="1" max="200" step="1"></label></div>
-<p id="hint">Drag a widget or use the arrow keys (Shift: one grid step); drag the handles to resize. Always edited in 7 inch pixels. Undo and redo are the standard VS Code commands. Saving rewrites only the x, y, width and height of the edited WDGT lines.</p>
+<p id="hint">Drag a widget or use the arrow keys (Shift: one grid step); drag the handles to resize; Delete removes the selected widget. Always edited in 7 inch pixels. Undo and redo are the standard VS Code commands. Saving rewrites only the edited, added or removed WDGT lines and recomputes the ConfigHash.</p>
+${renderPalette()}
+<div id="notice" role="status"></div>
+<div id="refs" hidden></div>
+${renderHint(opts.hint)}
+<datalist id="sdimages">${(opts.images ?? []).map((i) => `<option value="${escapeHtml(i)}">`).join("")}</datalist>
+<datalist id="colornames">${["Black", "White", "Silver", "Gray", "Red", "Green", "Blue", "Yellow", "Orange"].map((c) => `<option value="${c}">`).join("")}</datalist>
 ${empty}<div id="screens">
 ${sections}
 </div>
@@ -399,6 +611,10 @@ ${sections}
 		.replace("__PS__", () => PREVIEW_STATE_SOURCE)
 		.replace("__EM__", () => EDITOR_MATH_SOURCE)
 		.replace("__INIT__", () => jsonForScript(previewState.sanitize(opts.initialState)))
-		.replace("__PREFS__", () => jsonForScript({ snap: !!opts.prefs.snap, grid }))}</script>
+		.replace("__PREFS__", () => jsonForScript({ snap: !!opts.prefs.snap, grid }))
+		.replace("__CAT__", () => jsonForScript(catalogForPage()))
+		.replace("__PROPS__", () => jsonForScript(props))
+		.replace("__IMAGES__", () => jsonForScript((opts.images ?? []).filter((i) => typeof i === "string")))
+		.replace("__INITSEL__", () => jsonForScript(typeof opts.selected === "number" ? opts.selected : null))}</script>
 </body></html>`;
 }

@@ -6,16 +6,36 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { backupPath } from "../editor/backup";
+import { enrichRev } from "../editor/catalogModel";
 import { renderEditorHtml } from "../editor/editorHtml";
-import { changedIds, editLabel, effectiveGeometry, emptyEditState, parseEditState, serializeEditState, setGeometry, withEdits } from "../editor/editState";
+import {
+	addWidget,
+	changedIds,
+	deleteWidget,
+	editLabel,
+	effectiveGeometry,
+	effectiveWidgets,
+	emptyEditState,
+	parseEditState,
+	renameAlias,
+	serializeEditState,
+	setGeometry,
+	setProp,
+	structuralChanged,
+	toOps,
+	withEdits,
+} from "../editor/editState";
 import type { EditState } from "../editor/editState";
+import { iriHint } from "../editor/iriHint";
+import type { IriHint } from "../editor/iriHint";
 import { DEFAULT_GRID, parseEditorMessage } from "../editor/messages";
-import { planSave } from "../editor/saveRev";
+import { effectiveRev, planSave } from "../editor/saveRev";
 import { loadIriteProject } from "../irite";
 import type { IriteProjectModel } from "../irite";
 import { previewState } from "../preview/previewState";
 import type { PreviewState } from "../preview/previewState";
 import { buildScreenView } from "../preview/screenModel";
+import type { WidgetView } from "../preview/screenModel";
 import { parseRev } from "../rev";
 import type { RevModel } from "../rev";
 import { locateRev } from "./previewScreens";
@@ -23,11 +43,12 @@ import { locateRev } from "./previewScreens";
 const VIEW_TYPE = "irite.screenEditor";
 
 const WARNING =
-	"Saving writes the new widget positions and sizes into this .rev. Revolution's integrity hash (ConfigHash) is NOT recomputed, " +
-	"and the result has not been verified in Revolution or on a 1280.";
+	"Saving writes your widget changes (edited, added and deleted widgets) into this .rev and recomputes Revolution's integrity hash (ConfigHash). " +
+	"The result has not been verified in Revolution or on a 1280.";
 const WARNING_DETAIL =
 	"Before writing, the current file is copied next to it (main.rev.bak, or a timestamped name when that exists). " +
-	"Only the x, y, width and height of the edited WDGT lines change; every other byte stays as it is. " +
+	"Only the WDGT lines of the edited, added or deleted widgets and the ConfigHash line change; every other byte stays as it is. " +
+	"main.iri is never edited: add, update or remove the alias constants it lists. " +
 	"Open the saved file in Revolution before loading it on an indicator, and keep the backup until you have.";
 
 class RevDocument implements vscode.CustomDocument {
@@ -37,6 +58,8 @@ class RevDocument implements vscode.CustomDocument {
 	original: Buffer;
 	readonly panels = new Set<vscode.WebviewPanel>();
 	view: PreviewState = previewState.emptyState();
+	/** Widget selected in the page; kept across rebuilds of the page. */
+	selected: number | null = null;
 	prefs = { snap: true, grid: DEFAULT_GRID };
 
 	constructor(
@@ -71,6 +94,24 @@ function loadProject(revPath: string): IriteProjectModel | undefined {
 	}
 }
 
+/** File names of `sdimages/` next to the `.rev` (the image picker's list). */
+function listImages(dir: string): string[] {
+	try {
+		return fs
+			.readdirSync(path.join(dir, "sdimages"))
+			.filter((f) => /\.(png|svg|jpe?g|bmp|gif)$/i.test(f))
+			.sort((a, b) => a.localeCompare(b))
+			.slice(0, 500);
+	} catch {
+		return [];
+	}
+}
+
+/** The widget list as `main.iri` sees it: widgets that have an alias there. */
+function aliasEntries(rev: RevModel, state: EditState): Array<{ id: number; alias: string }> {
+	return effectiveWidgets(rev, state).flatMap((w) => (w.alias ? [{ id: w.id, alias: w.alias }] : []));
+}
+
 function writeAtomic(target: string, bytes: Buffer): void {
 	const tmp = `${target}.irite-tmp`;
 	try {
@@ -92,7 +133,7 @@ class ScreenEditorProvider implements vscode.CustomEditorProvider<RevDocument> {
 			throw new Error("iRite: the screen editor only opens .rev files on disk.");
 		}
 		const bytes = fs.readFileSync(uri.fsPath);
-		const rev = parseRev(bytes.toString("utf8"));
+		const rev = enrichRev(parseRev(bytes.toString("utf8")));
 		let state = emptyEditState();
 		if (openContext.backupId) {
 			try {
@@ -112,16 +153,20 @@ class ScreenEditorProvider implements vscode.CustomEditorProvider<RevDocument> {
 		panel.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.file(path.dirname(document.uri.fsPath))] };
 		document.panels.add(panel);
 		panel.onDidDispose(() => document.panels.delete(panel));
-		panel.webview.onDidReceiveMessage((m: unknown) => this.onMessage(document, m));
+		panel.webview.onDidReceiveMessage((m: unknown) => {
+			void this.onMessage(document, m).catch((e) => console.error("iRite screen editor message failed", e));
+		});
 		this.render(document, panel);
 	}
 
 	private render(doc: RevDocument, panel: vscode.WebviewPanel): void {
 		try {
 			const dir = path.dirname(doc.uri.fsPath);
-			const rev: RevModel = { ...doc.rev, widgets: withEdits(doc.rev.widgets, doc.state) };
 			const webview = panel.webview;
-			webview.html = renderEditorHtml(buildScreenView(rev, doc.project), {
+			webview.html = renderEditorHtml(buildScreenView(this.effective(doc), doc.project), {
+				selected: doc.selected,
+				images: listImages(dir),
+				hint: this.hint(doc),
 				cspSource: webview.cspSource,
 				nonce: crypto.randomBytes(16).toString("base64"),
 				title: path.basename(doc.uri.fsPath),
@@ -136,6 +181,64 @@ class ScreenEditorProvider implements vscode.CustomEditorProvider<RevDocument> {
 			panel.webview.html = `<!DOCTYPE html><html><body>Could not render the screen editor.</body></html>`;
 			console.error("iRite screen editor failed", e);
 		}
+	}
+
+	/** The model with every edit applied (what the page shows); falls back to geometry-only edits if it cannot be built. */
+	private effective(doc: RevDocument): RevModel {
+		try {
+			return enrichRev(effectiveRev(doc.original, toOps(doc.rev, doc.state)));
+		} catch {
+			return { ...doc.rev, widgets: withEdits(doc.rev.widgets, doc.state) };
+		}
+	}
+
+	private hint(doc: RevDocument): IriHint {
+		return iriHint(aliasEntries(doc.rev, emptyEditState()), aliasEntries(doc.rev, doc.state));
+	}
+
+	private renderAll(doc: RevDocument): void {
+		for (const p of doc.panels) {
+			this.render(doc, p);
+		}
+	}
+
+	private notice(doc: RevDocument, text: string): void {
+		for (const p of doc.panels) {
+			void p.webview.postMessage({ type: "notice", text });
+		}
+	}
+
+	/** Code references of widget `id`, from the issue #5 reference index over the project of the `.rev`. */
+	private refsOf(doc: RevDocument, id: number): { alias: string; total: number; groups: WidgetView["refGroups"] } {
+		const widget = buildScreenView(this.effective(doc), doc.project)
+			.screens.flatMap((s) => s.widgets)
+			.find((w) => w.id === id);
+		return { alias: widget?.alias ?? "", total: widget?.references.length ?? 0, groups: widget?.refGroups ?? [] };
+	}
+
+	private showRefs(doc: RevDocument, id: number): ReturnType<ScreenEditorProvider["refsOf"]> {
+		const refs = this.refsOf(doc, id);
+		for (const p of doc.panels) {
+			void p.webview.postMessage({ type: "refs", id, ...refs });
+		}
+		return refs;
+	}
+
+	/** Modal warning when the alias is used in code; true when there is nothing to warn about or the user accepts. */
+	private async confirmUse(doc: RevDocument, id: number, verb: "Delete" | "Rename"): Promise<boolean> {
+		const refs = this.showRefs(doc, id);
+		if (refs.total === 0) {
+			return true;
+		}
+		const sites = refs.groups.flatMap((g) => g.routines.flatMap((r) => r.sites.map((s) => `${g.label}:${s.line}  ${r.routine}  (${s.callee})`)));
+		const more = sites.length > 12 ? `\n... and ${sites.length - 12} more (see the references panel)` : "";
+		const ok = `${verb} anyway`;
+		const pick = await vscode.window.showWarningMessage(
+			`The alias "${refs.alias}" is used in ${refs.total} place${refs.total === 1 ? "" : "s"} of the code.`,
+			{ modal: true, detail: `${sites.slice(0, 12).join("\n")}${more}\n\nThe code will not compile until it is updated and main.iri has the matching constants.` },
+			ok,
+		);
+		return pick === ok;
 	}
 
 	/** Tells every page of the document the effective geometry of `ids` (after an edit, undo, redo). */
@@ -153,47 +256,131 @@ class ScreenEditorProvider implements vscode.CustomEditorProvider<RevDocument> {
 		}
 	}
 
-	private onMessage(doc: RevDocument, raw: unknown): void {
-		const msg = parseEditorMessage(raw, new Set(doc.rev.widgets.map((w) => w.id)));
-		if (!msg) {
-			return;
-		}
-		if (msg.type === "state") {
-			doc.view = msg.state;
-			return;
-		}
-		if (msg.type === "prefs") {
-			doc.prefs = { snap: msg.snap, grid: msg.grid };
-			return;
-		}
-		const widget = doc.rev.widgets.find((w) => w.id === msg.id);
-		const r = widget ? setGeometry(doc.state, doc.rev, msg.id, msg.patch) : undefined;
-		if (!widget || !r || !r.ok) {
-			// Rejected: put the page back on the real value.
-			this.sync(doc, [msg.id]);
-			return;
-		}
+	/** Records `after` as one undoable edit and brings the pages up to date. */
+	private commit(doc: RevDocument, label: string, after: EditState, selected?: number | null): void {
 		const before = doc.state;
-		const after = r.state;
-		const touched = changedIds(before, after);
-		if (touched.length === 0) {
-			this.sync(doc, [msg.id]);
+		if (selected !== undefined) {
+			doc.selected = selected;
+		}
+		if (JSON.stringify(before) === JSON.stringify(after)) {
+			this.notice(doc, "");
 			return;
 		}
 		doc.state = after;
 		this.changeEmitter.fire({
 			document: doc,
-			label: editLabel(widget, msg.patch),
+			label,
 			undo: () => {
 				doc.state = before;
-				this.sync(doc, touched);
+				this.refresh(doc, after, before);
 			},
 			redo: () => {
 				doc.state = after;
-				this.sync(doc, touched);
+				this.refresh(doc, before, after);
 			},
 		});
-		this.sync(doc, touched);
+		this.refresh(doc, before, after);
+	}
+
+	/** Geometry-only changes of widgets in the file are synced in place; anything else rebuilds the page. */
+	private refresh(doc: RevDocument, a: EditState, b: EditState): void {
+		if (structuralChanged(a, b)) {
+			this.renderAll(doc);
+		} else {
+			this.sync(doc, changedIds(a, b));
+		}
+	}
+
+	private reject(doc: RevDocument, id: number, reason: string): void {
+		this.notice(doc, reason);
+		this.sync(doc, [id]);
+	}
+
+	private async onMessage(doc: RevDocument, raw: unknown): Promise<void> {
+		const widgets = effectiveWidgets(doc.rev, doc.state);
+		const msg = parseEditorMessage(raw, new Set(widgets.map((w) => w.id)), new Map(widgets.map((w) => [w.id, w.type])));
+		if (!msg) {
+			return;
+		}
+		switch (msg.type) {
+			case "state":
+				doc.view = msg.state;
+				return;
+			case "prefs":
+				doc.prefs = { snap: msg.snap, grid: msg.grid };
+				return;
+			case "select":
+				doc.selected = msg.id;
+				return;
+			case "requestRefs":
+				this.showRefs(doc, msg.id);
+				return;
+			case "edit": {
+				const r = setGeometry(doc.state, doc.rev, msg.id, msg.patch);
+				if (!r.ok) {
+					this.reject(doc, msg.id, r.reason);
+					return;
+				}
+				if (JSON.stringify(r.state) === JSON.stringify(doc.state)) {
+					this.sync(doc, [msg.id]); // nothing changed: put the page back on the real value
+					return;
+				}
+				this.commit(doc, editLabel({ id: msg.id }, msg.patch), r.state);
+				return;
+			}
+			case "setProp": {
+				const r = setProp(doc.state, doc.rev, msg.id, msg.field, msg.value);
+				if (!r.ok) {
+					this.reject(doc, msg.id, r.reason);
+					return;
+				}
+				this.notice(doc, "");
+				this.commit(doc, `Set ${msg.field} of widget ${msg.id}`, r.state);
+				return;
+			}
+			case "add": {
+				const r = addWidget(doc.state, doc.rev, { type: msg.widgetType, x: msg.x, y: msg.y, screen: msg.screen });
+				if (!r.ok) {
+					this.notice(doc, r.reason);
+					return;
+				}
+				this.commit(doc, `Add widget ${r.id}`, r.state, r.id);
+				this.notice(doc, "");
+				return;
+			}
+			case "renameAlias": {
+				const check = renameAlias(doc.state, doc.rev, msg.id, msg.alias);
+				if (!check.ok) {
+					this.reject(doc, msg.id, check.reason);
+					return;
+				}
+				if (JSON.stringify(check.state) !== JSON.stringify(doc.state) && !(await this.confirmUse(doc, msg.id, "Rename"))) {
+					this.notice(doc, "Rename cancelled.");
+					return;
+				}
+				const r = renameAlias(doc.state, doc.rev, msg.id, msg.alias);
+				if (!r.ok) {
+					this.reject(doc, msg.id, r.reason);
+					return;
+				}
+				this.notice(doc, "");
+				this.commit(doc, `Rename alias of widget ${msg.id}`, r.state);
+				return;
+			}
+			case "delete": {
+				if (!(await this.confirmUse(doc, msg.id, "Delete"))) {
+					return;
+				}
+				const r = deleteWidget(doc.state, doc.rev, msg.id);
+				if (!r.ok) {
+					this.notice(doc, r.reason);
+					return;
+				}
+				this.notice(doc, "");
+				this.commit(doc, `Delete widget ${msg.id}`, r.state, null);
+				return;
+			}
+		}
 	}
 
 	private async confirm(doc: RevDocument): Promise<void> {
@@ -224,8 +411,10 @@ class ScreenEditorProvider implements vscode.CustomEditorProvider<RevDocument> {
 		fs.copyFileSync(target, backup);
 		writeAtomic(target, next);
 		doc.bytes = next;
-		const n = plan ? plan.changed.length : 0;
-		void vscode.window.showInformationMessage(`iRite: saved ${path.basename(target)} (${n} edited widget line${n === 1 ? "" : "s"}). Backup: ${path.basename(backup)}. ConfigHash was not recomputed.`);
+		const parts = plan ? [`${plan.changed.length} edited`, `${plan.added.length} added`, `${plan.removed.length} removed`] : [];
+		const h = this.hint(doc);
+		const iri = h.add.length + h.change.length + h.remove.length > 0 ? " main.iri needs constant changes: see the panel of the editor." : "";
+		void vscode.window.showInformationMessage(`iRite: saved ${path.basename(target)} (widget lines: ${parts.join(", ")}). Backup: ${path.basename(backup)}. ConfigHash recomputed.${iri}`);
 	}
 
 	async saveCustomDocumentAs(doc: RevDocument, destination: vscode.Uri): Promise<void> {
@@ -237,12 +426,11 @@ class ScreenEditorProvider implements vscode.CustomEditorProvider<RevDocument> {
 	async revertCustomDocument(doc: RevDocument): Promise<void> {
 		doc.bytes = fs.readFileSync(doc.uri.fsPath);
 		doc.original = doc.bytes;
-		doc.rev = parseRev(doc.bytes.toString("utf8"));
+		doc.rev = enrichRev(parseRev(doc.bytes.toString("utf8")));
 		doc.project = loadProject(doc.uri.fsPath);
 		doc.state = emptyEditState();
-		for (const p of doc.panels) {
-			this.render(doc, p);
-		}
+		doc.selected = null;
+		this.renderAll(doc);
 	}
 
 	async backupCustomDocument(doc: RevDocument, context: vscode.CustomDocumentBackupContext): Promise<vscode.CustomDocumentBackup> {
