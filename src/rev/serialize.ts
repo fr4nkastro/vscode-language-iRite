@@ -222,6 +222,11 @@ function patchFields(id: number, line: string, fields: FieldValues): string {
 		if (idx === 0) {
 			fail(id, "the widget type cannot be changed");
 		}
+		// More tokens than the catalog: a caption with commas or trailing extras cannot be told apart, so only the
+		// geometry before the caption is safe to patch (anything else could drop or shift tokens).
+		if (extra > 0 && (type === 4 || type === 11) && idx >= 5) {
+			fail(id, `the line has ${tokens.length} tokens (catalog: ${def?.tokenCount}); caption and later fields are ambiguous, edit them in Revolution`);
+		}
 		const why = checkWidgetToken(type, byIndex ? Number(key) : key, value);
 		if (why) {
 			fail(id, why);
@@ -233,11 +238,8 @@ function patchFields(id: number, line: string, fields: FieldValues): string {
 	}
 	let changed = false;
 	for (const [idx, v] of [...todo.entries()].sort((a, b) => b[0] - a[0])) {
-		// A caption spread over several tokens by a comma (written by another tool) is replaced as a whole.
-		const span = idx === 5 && extra > 0 && (type === 4 || type === 11) ? 1 + extra : 1;
-		const old = tokens.slice(idx, idx + span).join(",");
-		if (old !== v) {
-			tokens.splice(idx, span, v);
+		if (tokens[idx] !== v) {
+			tokens[idx] = v;
 			changed = true;
 		}
 	}

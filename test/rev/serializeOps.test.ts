@@ -81,10 +81,15 @@ describe("applyWidgetOps: patch any field", () => {
 		expect(() => applyWidgetOps(crlf, [patch(4, { "0": 7 })])).toThrow(RevWriteError);
 	});
 
-	it("maps fields by name when another tool wrote a caption with commas", () => {
-		const t = "<Config>WDGT#1=4,1,2,3,4,Hello, world,1,2,18,#BB0000,lbl1,4,0,0,1,7\r\n</Config>";
-		expect(applyWidgetOps(t, [patch(1, { color: "Red" })])).toBe("<Config>WDGT#1=4,1,2,3,4,Hello, world,1,2,18,Red,lbl1,4,0,0,1,7\r\n</Config>");
-		expect(applyWidgetOps(t, [patch(1, { caption: "Hi" })])).toBe("<Config>WDGT#1=4,1,2,3,4,Hi,1,2,18,#BB0000,lbl1,4,0,0,1,7\r\n</Config>");
+	it("a label line with more tokens than the catalog only allows geometry patches (caption commas or trailing extras are ambiguous)", () => {
+		const commas = "<Config>WDGT#1=4,1,2,3,4,Hello, world,1,2,18,#BB0000,lbl1,4,0,0,1,7\r\n</Config>";
+		expect(applyWidgetOps(commas, [patch(1, { x: 10 })])).toBe("<Config>WDGT#1=4,10,2,3,4,Hello, world,1,2,18,#BB0000,lbl1,4,0,0,1,7\r\n</Config>");
+		expect(() => applyWidgetOps(commas, [patch(1, { color: "Red" })])).toThrow(RevWriteError);
+		expect(() => applyWidgetOps(commas, [patch(1, { caption: "Hi" })])).toThrow(RevWriteError);
+		const trailing = "<Config>WDGT#1=4,1,2,3,4,Hello,2,1,18,#BB0000,lbl1,4,0,0,1,7,extra1,extra2\r\n</Config>";
+		expect(() => applyWidgetOps(trailing, [patch(1, { caption: "NEW" })])).toThrow(/ambiguous/);
+		expect(() => applyWidgetOps(trailing, [patch(1, { "5": "NEW" })])).toThrow(RevWriteError);
+		expect(applyWidgetOps(trailing, [patch(1, { width: 30 })])).toBe("<Config>WDGT#1=4,1,2,30,4,Hello,2,1,18,#BB0000,lbl1,4,0,0,1,7,extra1,extra2\r\n</Config>");
 	});
 });
 
