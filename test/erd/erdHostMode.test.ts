@@ -38,7 +38,7 @@ it('replaces the read-only diagram with the saved readback', () => {
   window:{addEventListener(type: string, cb: (event: any) => void) { (listeners.window ??= {})[type] = cb; }},
   acquireVsCodeApi:() => ({postMessage:(message: any) => posts.push(message)}),
  });
- listeners['edit-save'].click();
+ listeners['edit-save'].click({});
  listeners.window.message({data:{type:'erd-edit-state', generation:0, requestId:posts[0].requestId, diagram:'edited', feedback:'', readonly:'saved readback', canSave:true}});
  expect(nodes['readonly-view'].innerHTML).toBe('saved readback');
 });
