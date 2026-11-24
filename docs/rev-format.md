@@ -307,25 +307,34 @@ Exact: a header line `-- Widget Aliases`, then one line per widget that has an a
 
 ## Database
 
-The following database observations are from the read-only DOLE `main.rev:1005-1016` and its generated `main.iri:20-56` (`[SAMPLES]`); they do not establish the complete Revolution enum or validation rules.
+Database type evidence below concerns the Revolution v308 designer, not indicator acceptance. Sample observations are from read-only DOLE `main.rev:1005-1016` and generated `main.iri:20-56` (`[SAMPLES]`).
 
-- A table uses `DB.SCHEMA#<index>=<maxRecords>,0,<field>,<typeCode>,<size>[,<field>,<typeCode>,<size>...]` and `DB.ALIAS#<index>=<tableName>`. The matching index pairs a schema with its alias; field triples are in the same order as the corresponding iRite database declaration. The meaning and permitted values of the second schema token, observed as `0`, are **UNCONFIRMED**.
+- A table uses `DB.SCHEMA#<index>=<maxRecords>,<recordsToken>,<field>,<typeCode>,<size>[,<field>,<typeCode>,<size>...]` and `DB.ALIAS#<index>=<tableName>`. The matching index pairs a schema with its alias; field triples are in the same order as the corresponding iRite database declaration. `[IL]` `rev1280.v308.dll: Database.Table.CreateSchemaString` sources the second token from `m_records`; its meaning and permitted values remain **UNCONFIRMED**. It is `0` in all six DOLE schemas (`[SAMPLES]`).
 - DOLE writes each `DB.SCHEMA#n` immediately followed by `DB.ALIAS#n`, for indices 1 through 6 in ascending order. Its DB block follows `DIO.ALIAS.8#0` and precedes `EDP.ADDRESS#1` (then `EDP.ALIAS#1`): the observed port key prefix is `EDP.`. The family order from `[IL]` places analog out before database and comm ports after it (section 1), but DOLE has no observed analog-out line at this boundary; the exact analog-out key prefix is **UNCONFIRMED**. Do not infer a prefix or assume every file has either neighboring family.
 
 When inserting the first database block, the editor puts it before the first recognized later-family key (`EDP.`, `STRM.`, `SP.`, `WDGT`, `SKT.`, `SK.OP`, `GFMT`, `NFMT`, `AUXFMT`, or `LC.`). If none is present, it appends to the Config text; unknown keys remain in place. The exact placement of softkey, format and other unrecognized keys relative to the database is **UNCONFIRMED**, so this fallback is a best effort rather than a proven Revolution boundary.
 
-| Code | Observed size(s) | iRite type in DOLE | Example |
-|------|------------------|--------------------|---------|
-| 1 | 1 | Integer | `Trans.TypeWgt` |
-| 2 | 2 | Integer | `Trans.Id` |
-| 3 | 4 | Integer | `Trans.Ticket` |
-| 4 | 4 | Real | `Trans.Weight` |
-| 6 | 19 | String | `Trans.OutDT` |
-| 7 | 7, 15, 16, 19, 20 | String | `Vehicles.TruckId` (7), `Trans.InDT` (19) |
+### Field types (v308 designer)
 
-These are observed code/size combinations, not proven exhaustive size rules. The full enum, numeric ranges, whether other sizes are accepted, and the difference between string codes 6 and 7 are **UNCONFIRMED**. No DB enum or size rules were established by the prior `[REA]`/`[IL]` investigation. Preserve unknown codes and their raw tokens without rewriting them.
+`[REA]` `rev1280.v308.dll: Database.DatabaseType.DBType` establishes codes 0–8; `[REA]`/`[IL]` `Database.DatabaseType.GetString`, `GetDefaultSize` and `Database.DatabaseField.ConvertToiRiteType` establish the names, defaults and mappings. Fixed/variable describes the designer size control, not proven device storage behavior: `[IL]` `Database.EditFieldForm.DataTypeSelection`.
 
-DOLE contains `maxRecords` values from 1 to 500000; 500000 is an observation, **not** a maximum. Maximum records, number of fields, table-name and field-name lengths, and other device or designer limits are **UNCONFIRMED**; do not invent maxima or block on unproven limits. Editing schemas based on these observations may produce configurations Revolution or the indicator rejects, or break existing iRite code: warn the user and manually validate the saved file in Revolution and on a suitable test indicator before production use.
+| Code | Revolution name | iRite type | Designer size rule / default |
+|------|-----------------|------------|------------------------------|
+| 0 | None | None | 0; rejected by edit form |
+| 1 | Byte | Integer | fixed 1 |
+| 2 | Short Integer | Integer | fixed 2 |
+| 3 | Long Integer | Integer | fixed 4 |
+| 4 | Single Precision Real | Real | fixed 4 |
+| 5 | Double Precision Real | Real | fixed 8 |
+| 6 | Fixed Length String | String | variable; default 20 |
+| 7 | Variable Length String | String | variable; default 20 |
+| 8 | DateTime | DateTime | fixed 8 |
+
+`[IL]` `rev1280.v308.dll: Database.EditFieldForm.InitControls` includes None in the picker, but `ValidateUi` requires a type greater than zero. For string sizes, `ValidateUi` parses a signed 32-bit integer and rejects values above 255; its size branch has no lower-bound check, so zero and negatives pass that branch, subject to other form checks. The actual device minimum, acceptance and distinction between the two string types remain **UNCONFIRMED**. `Database.DatabaseType.GetMaxSize` is a separate data-display helper, not an established schema byte-size rule.
+
+`[SAMPLES]` DOLE corroborates codes 1/2/3 as Integer with sizes 1/2/4, code 4 as Real size 4, and codes 6/7 as String with sizes 19 and 7/15/16/19/20 respectively. Codes 0/5/8 were not cross-checked in samples. The extension requires newly edited string sizes to be positive integers up to 255 as its own policy, and fixed sizes for the other editable types; unchanged legacy size combinations are preserved with warnings. Unknown codes and code 0 remain raw and read-only; unchanged schemas cause no write. `.rev` continues to store numeric codes.
+
+DOLE contains `maxRecords` values from 1 to 500000; 500000 is an observation, **not** a maximum. Maximum records, numbers of fields and tables, table-name and field-name lengths and allowed characters, record and database memory limits, record-size computation, and other device or designer limits are **UNCONFIRMED**; do not invent maxima or block on unproven limits. Editing schemas based on these observations may produce configurations Revolution or the indicator rejects, or break existing iRite code: warn the user and manually validate the saved file in Revolution and on a suitable test indicator before production use.
 
 ## 8. Other facts
 

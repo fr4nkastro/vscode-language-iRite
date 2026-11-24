@@ -209,8 +209,11 @@ Multiple matching `main.rev` names or multiple alternatives without `main.rev`
 leave the diagram readable but disable editing. The confirmation names the target.
 
 Add, rename or delete tables; edit record limits; and add, rename, delete or
-reorder columns and edit their type and size. Unknown type codes are preserved
-as raw values and their columns cannot be edited. Use **Apply table** or
+reorder columns and edit their type and size. The picker and diagram show
+Revolution type names; changing type applies its designer default size. Numeric
+codes remain in `.rev`; unknown codes and None (0) are preserved as raw values
+and their columns cannot be edited. Unchanged legacy size combinations are
+preserved with warnings. Use **Apply table** or
 **Apply column** to send typed values to the draft. **Revert unsent edits**
 only resets values not yet applied; it does not undo changes already in the
 draft. Apply or revert pending values before other actions, switching modes or
@@ -228,9 +231,10 @@ deferred refresh after editing ends.
 The editor never writes `main.iri`: after saving, regenerate it in Revolution
 or use the displayed declarations and constants. Renames, deletions and field
 order changes can break existing code and DB access routines; review both.
-Limits and type/size combinations remain unconfirmed. Opening an edited file in
-Revolution and loading it on an indicator remain unverified; check both before
-production and keep the backup.
+Designer type defaults and size controls do not establish device acceptance.
+Database name lengths, field counts, record limits and device size rules remain
+unconfirmed. Opening an edited file in Revolution and loading it on an indicator
+remain unverified; check both before production and keep the backup.
 
 ### Database diagram (ERD)
 

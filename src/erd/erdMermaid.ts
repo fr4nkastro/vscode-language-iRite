@@ -1,5 +1,6 @@
 /** Mermaid `erDiagram` text from an Erd. Pure. */
 import type { Erd } from "./erdModel";
+import { fieldType } from '../dbschema/fieldTypes';
 
 const ident = (s: string): string => {
 	const r = s.replace(/[^A-Za-z0-9_]/g, "_");
@@ -11,7 +12,7 @@ export function erdToMermaid(erd: Erd): string {
 	for (const t of erd.tables) {
 		lines.push(`    ${ident(t.name)} {`);
 		for (const f of t.fields) {
-			lines.push(`        ${ident(f.type || "unknown")} ${ident(f.name)}`);
+			lines.push(`        ${ident(f.typeCode !== undefined ? (fieldType(f.typeCode)?.name ?? `Unknown_${f.typeCode}`) : (f.type || "unknown"))} ${ident(f.name)}`);
 		}
 		lines.push("    }");
 	}

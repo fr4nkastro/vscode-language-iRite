@@ -1,8 +1,9 @@
 import type { RevDbField, RevModel } from "../rev";
+import { editableFieldType } from './fieldTypes';
 
 /** Original positions address the decoded DB.SCHEMA tokens, even after reorder. */
 export interface FieldSource { tableIndex: number; fieldIndex: number }
-export interface DbField extends RevDbField { source?: FieldSource }
+export interface DbField extends RevDbField { source?: FieldSource; originalTypeCode?: number; originalSize?: number }
 export interface DbTable { index: number; name: string; maxRecords: number; fields: DbField[]; sourceIndex?: number }
 export interface DbSchema { tables: DbTable[]; reservedIndexes: number[] }
 export type DbEdit =
@@ -14,7 +15,10 @@ export type DbEdit =
  | { kind: "moveField"; table: number; from: number; to: number }
  | { kind: "updateField"; table: number; field: number; changes: { name?: string; typeCode?: number; size?: number } };
 
-const types: Record<number, RevDbField["typeName"]> = { 1: "integer", 2: "integer", 3: "integer", 4: "real", 6: "string", 7: "string" };
+const typeName = (code: number): RevDbField['typeName'] => {
+ const t = editableFieldType(code)?.iriteType;
+ return t === 'integer' || t === 'real' || t === 'string' ? t : 'unknown';
+};
 const observed: Record<number, number[]> = { 1: [1], 2: [2], 3: [4], 4: [4], 6: [19], 7: [7, 15, 16, 19, 20] };
 // Structural and word operators from syntaxes/irite.tmLanguage; its math functions are not keywords.
 const keywords = new Set("begin end for loop to while return var if else elsif then and exit is mod not of or record type function procedure program handler".split(" "));
@@ -38,7 +42,7 @@ export function createDbSchema(rev: RevModel): DbSchema {
   const entry = entries.find(e => e.key === "DB.SCHEMA" && e.index === t.index);
   const tokens = entry?.value.split(",");
   if (!tokens || tokens.length !== 2 + t.fields.length * 3 || t.fields.some((f, i) => tokens[2 + i * 3] !== f.name || Number(tokens[3 + i * 3]) !== f.typeCode || Number(tokens[4 + i * 3]) !== f.size)) throw new Error(`Ambiguous database schema #${t.index}`);
-  return { index: t.index, sourceIndex: t.index, name: t.name, maxRecords: t.maxRecords, fields: t.fields.map((f, fieldIndex) => ({ ...f, typeName: types[f.typeCode] ?? f.typeName, source: { tableIndex: t.index, fieldIndex } })) };
+  return { index: t.index, sourceIndex: t.index, name: t.name, maxRecords: t.maxRecords, fields: t.fields.map((f, fieldIndex) => ({ ...f, typeName: typeName(f.typeCode), originalTypeCode: f.typeCode, originalSize: f.size, source: { tableIndex: t.index, fieldIndex } })) };
  });
  if (tables.length * 2 !== entries.length) throw new Error("Malformed database schemas");
  return { tables, reservedIndexes: entries.map(e => e.index as number) };
@@ -59,8 +63,8 @@ export function editDbSchema(model: DbSchema, edit: DbEdit): DbSchema {
  if (edit.kind === "deleteTable") { result.tables.splice(pos, 1); return result; }
  if (edit.kind === "updateTable") { if (edit.name !== undefined) table.name = edit.name; if (edit.maxRecords !== undefined) table.maxRecords = edit.maxRecords; return result; }
  if (edit.kind === "addField") {
-  if (!types[edit.typeCode]) throw new Error("Cannot add unknown type code");
-  table.fields.push({ name: edit.name, typeCode: edit.typeCode, typeName: types[edit.typeCode], size: edit.size }); return result;
+  if (!editableFieldType(edit.typeCode)) throw new Error("Cannot add unknown type code");
+  table.fields.push({ name: edit.name, typeCode: edit.typeCode, typeName: typeName(edit.typeCode), size: edit.size }); return result;
  }
  const fieldAt = (index: number): DbField => {
   if (!Number.isInteger(index) || index < 0 || index >= table.fields.length) throw new Error("Field not found");
@@ -69,14 +73,15 @@ export function editDbSchema(model: DbSchema, edit: DbEdit): DbSchema {
  if (edit.kind === "moveField") { fieldAt(edit.from); fieldAt(edit.to); table.fields.splice(edit.to, 0, table.fields.splice(edit.from, 1)[0]); return result; }
  const field = fieldAt(edit.field);
  if (edit.kind === "deleteField") { table.fields.splice(edit.field, 1); return result; }
- if (!types[field.typeCode] || (edit.changes.typeCode !== undefined && !types[edit.changes.typeCode])) throw new Error("Cannot edit unknown type code field or assign unknown type code");
+ if (!editableFieldType(field.typeCode) || (edit.changes.typeCode !== undefined && !editableFieldType(edit.changes.typeCode))) throw new Error("Cannot edit unknown type code field or assign unknown type code");
  if (edit.changes.name !== undefined) field.name = edit.changes.name;
+ const changedType = edit.changes.typeCode !== undefined && edit.changes.typeCode !== field.typeCode;
  if (edit.changes.size !== undefined) field.size = edit.changes.size;
- if (edit.changes.typeCode !== undefined) { field.typeCode = edit.changes.typeCode; field.typeName = types[field.typeCode]; }
+ if (changedType) { field.typeCode = edit.changes.typeCode!; field.typeName = typeName(field.typeCode); const type = editableFieldType(field.typeCode)!; field.size = type.variable && edit.changes.size !== undefined ? edit.changes.size : type.defaultSize; }
  return result;
 }
 
-export function validateDbSchema(model: DbSchema): { errors: string[]; warnings: string[] } {
+export function validateDbSchema(model: DbSchema, baseline?: DbSchema): { errors: string[]; warnings: string[] } {
  const errors: string[] = [];
  const warnings = ["Database name lengths, field counts, record limits and device size rules are unconfirmed; validate in Revolution and on a test indicator before production."];
  const names = new Set<string>();
@@ -90,9 +95,16 @@ export function validateDbSchema(model: DbSchema): { errors: string[]; warnings:
   if (!t.fields.length) errors.push(`Table ${t.name} requires at least one field`);
   const fields = new Set<string>();
   for (const f of t.fields) {
-   identifier(f.name, `Field ${t.name}.${f.name}`, fields); positive(f.size, `Field ${t.name}.${f.name} size`);
-   if (!types[f.typeCode]) warnings.push(`Field ${t.name}.${f.name}: unknown type code preserved`);
-   else if (!observed[f.typeCode].includes(f.size)) warnings.push(`Field ${t.name}.${f.name}: size combination is unconfirmed`);
+   identifier(f.name, `Field ${t.name}.${f.name}`, fields);
+   const type = editableFieldType(f.typeCode);
+   const previous = baseline && f.source ? baseline.tables.find(table => table.index === f.source!.tableIndex)?.fields[f.source.fieldIndex] : undefined;
+   const untouched = f.source && f.typeCode === (baseline ? previous?.typeCode : f.originalTypeCode) && f.size === (baseline ? previous?.size : f.originalSize);
+   if (!type) warnings.push(`Field ${t.name}.${f.name}: unknown type code preserved`);
+   else {
+    const valid = Number.isSafeInteger(f.size) && (type.variable ? f.size > 0 && f.size <= 255 : f.size === type.defaultSize);
+    if (!valid && !untouched) errors.push(`Field ${t.name}.${f.name} size ${type.variable ? 'must be a positive integer up to 255 (extension policy; designer maximum 255)' : `must be ${type.defaultSize}`}`);
+    if (!valid || (observed[f.typeCode] && !observed[f.typeCode].includes(f.size))) warnings.push(`Field ${t.name}.${f.name}: size combination is unconfirmed`);
+   }
   }
  }
  return { errors, warnings };

@@ -2,6 +2,7 @@ import { decodeEntities, parseRev } from "../rev";
 import { computeConfigHash, readConfigHash, rewriteConfigHash } from "../rev/configHash";
 import { createDbSchema, validateDbSchema } from "./model";
 import type { DbSchema, DbTable } from "./model";
+import { editableFieldType } from './fieldTypes';
 
 export interface DbSavePlan { bytes: Buffer; model: DbSchema; hashChanged: boolean }
 
@@ -17,7 +18,7 @@ export function validateDbReadback(bytes: Buffer, intended: DbSchema): void {
 export function planDbSave(original: Buffer, intended: DbSchema): DbSavePlan | undefined {
  const text = original.toString("latin1");
  const before = createDbSchema(parseRev(original.toString("utf8")));
- const errors = validateDbSchema(intended).errors;
+ const errors = validateDbSchema(intended, before).errors;
  if (errors.length) throw new Error(errors.join("; "));
  const indices = new Set<number>();
  for (const table of intended.tables) {
@@ -59,11 +60,11 @@ export function planDbSave(original: Buffer, intended: DbSchema): DbSavePlan | u
     const previous = old.fields[field.source.fieldIndex];
     if (!previous) throw new Error("Invalid field provenance");
     used.add(field.source.fieldIndex);
-    if (![1, 2, 3, 4, 6, 7].includes(previous.typeCode) && (field.name !== previous.name || field.typeCode !== previous.typeCode || field.size !== previous.size)) throw new Error("Cannot edit unknown type code field");
+    if (!editableFieldType(previous.typeCode) && (field.name !== previous.name || field.typeCode !== previous.typeCode || field.size !== previous.size)) throw new Error("Cannot edit unknown type code field");
     const raw = tokens!.slice(2 + field.source.fieldIndex * 3, 5 + field.source.fieldIndex * 3);
     result.push(field.name === previous.name ? raw[0] : esc(field.name), field.typeCode === previous.typeCode ? raw[1] : String(field.typeCode), field.size === previous.size ? raw[2] : String(field.size));
    } else {
-    if (![1, 2, 3, 4, 6, 7].includes(field.typeCode)) throw new Error("Cannot add unknown type code field");
+    if (!editableFieldType(field.typeCode)) throw new Error("Cannot add unknown type code field");
     result.push(esc(field.name), String(field.typeCode), String(field.size));
    }
   }

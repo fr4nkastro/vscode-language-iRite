@@ -58,7 +58,7 @@ Goal: keep design and documentation inside VS Code — DB ERDs, PLC-style SFC/Gr
   - Colors: names (`Black`, `Silver`) or `#RRGGBB`. Coordinates are pixels; usable screen area ≈ **800×388** (full-screen backgrounds are 800×388; the panel is probably 800×480 with a fixed header — unconfirmed).
   - Screens have **no records or names** in `.rev`: a screen is only the screen number field of each widget (DOLE uses 1–15). Screen names come from code (DOLE: `UiScreen` record values in `ui/main.iri` `uiLoadSettingsUi`).
   - The `?` fields and every type layout are named in `docs/rev-format.md`; types beyond 11 are unknown and kept as raw tokens.
-- **Databases** `DB.SCHEMA#n=<maxRecords>,0,(<field>,<typeCode>,<size>)*` + `DB.ALIAS#n=<TableName>`. Type codes seen: 2/3 Integer, 4 Real, 6/7 String (difference unknown). No foreign keys anywhere.
+- **Databases** `DB.SCHEMA#n=<maxRecords>,<recordsToken>,(<field>,<typeCode>,<size>)*` + `DB.ALIAS#n=<TableName>`. V308 designer codes: 0 None, 1 Byte, 2 Short Integer, 3 Long Integer, 4 Single Precision Real, 5 Double Precision Real, 6 Fixed Length String, 7 Variable Length String, 8 DateTime; see `docs/rev-format.md` for sizes and evidence. The second token's meaning and device acceptance remain unconfirmed. No foreign keys anywhere.
 
 ## iRite Source Conventions a Parser Must Handle
 - `main.src`: `program main;` then `#include path\file.iri` lines (backslashes, project-relative); order = declaration order; `--#include` is commented out.
