@@ -262,13 +262,58 @@ describe("importFirmwareImages cleanup (S13)", () => {
 	});
 	it("sweeps pre-existing .old-/.tmp- leftovers at the start and keeps version dirs", async () => {
 		const root = join(storage(), "firmware-images");
-		mkdirSync(join(root, ".old-x"), { recursive: true });
+		mkdirSync(join(root, ".old-1.0.0-aaaaaaaaaaaa"), { recursive: true });
 		mkdirSync(join(root, ".tmp-y"), { recursive: true });
 		mkdirSync(join(root, "1.0.0"), { recursive: true });
 		writeFileSync(join(root, "1.0.0", "keep.txt"), "k");
 		const src = updateFolder("update", items(), "image_version=2.09.04\n");
-		await importFirmwareImages({ source: src, storageDir: storage() });
+		await importFirmwareImages({ source: src, storageDir: storage(), cleanup: { now: () => Date.now() + 48 * 3600_000 } });
 		expect(readdirSync(root).sort()).toEqual(["1.0.0", "2.09.04"]);
 		expect(existsSync(join(root, "1.0.0", "keep.txt"))).toBe(true);
+	});
+});
+
+describe("importFirmwareImages concurrency safety (B1/B2)", () => {
+	it("does not sweep another import's fresh .tmp-* or .old-<version>-* at start", async () => {
+		const root = join(storage(), "firmware-images");
+		mkdirSync(join(root, ".tmp-other"), { recursive: true });
+		writeFileSync(join(root, ".tmp-other", "manifest.json"), "{}");
+		mkdirSync(join(root, ".old-7.7-aaaaaaaaaaaa"), { recursive: true });
+		const src = updateFolder("update", items(), "image_version=2.09.04\n");
+		await importFirmwareImages({ source: src, storageDir: storage() });
+		expect(existsSync(join(root, ".tmp-other", "manifest.json"))).toBe(true);
+		expect(existsSync(join(root, ".old-7.7-aaaaaaaaaaaa"))).toBe(true);
+	});
+	it("fails without swapping when its tmp dir vanished before the swap, leaving the previous cache untouched", async () => {
+		const src = updateFolder("update", items(), "image_version=2.09.04\n");
+		await importFirmwareImages({ source: src, storageDir: storage() });
+		const root = join(storage(), "firmware-images");
+		const before = readFileSync(join(root, "2.09.04", "manifest.json"), "utf8");
+		await expect(
+			importFirmwareImages({
+				source: src,
+				storageDir: storage(),
+				beforeSwap: (tmpDir) => {
+					rmSync(tmpDir, { recursive: true, force: true });
+					mkdirSync(join(tmpDir, "7"), { recursive: true }); // a partial tree recreated by a later write
+					writeFileSync(join(tmpDir, "7", "1.png"), "partial");
+				},
+			}),
+		).rejects.toThrow(/removed|vanished|interrupted/i);
+		expect(readFileSync(join(root, "2.09.04", "manifest.json"), "utf8")).toBe(before);
+		expect(existsSync(join(root, "2.09.04", "7", "1.png"))).toBe(true);
+		expect(readFileSync(join(root, "2.09.04", "7", "1.png")).toString()).not.toBe("partial");
+		expect(readdirSync(root).filter((n) => n.startsWith(".old-"))).toEqual([]);
+	});
+	it("names the previous cache .old-<version>-<hex> during the swap", async () => {
+		const src = updateFolder("update", items(), "image_version=2.09.04\n");
+		await importFirmwareImages({ source: src, storageDir: storage() });
+		const r = await importFirmwareImages({
+			source: src,
+			storageDir: storage(),
+			cleanup: { rm: () => { throw Object.assign(new Error("x"), { code: "EIO" }); } },
+			logger: () => {},
+		});
+		expect(r.leftover).toMatch(/\.old-2\.09\.04-[0-9a-f]{12}$/);
 	});
 });

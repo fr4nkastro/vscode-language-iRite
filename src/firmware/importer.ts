@@ -26,11 +26,11 @@
  * images found is an error (nothing is written).
  */
 import { createHash, randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { classifyImageEntry, isPng, pngSize, type ImageVariant } from "./imageEntries";
 import { parseManifest, sanitizeVersion } from "./manifest";
-import { removeBestEffort, sweepLeftovers, type RemoveOptions } from "./cacheCleanup";
+import { removeBestEffort, sweepLeftovers, type SweepOptions } from "./cacheCleanup";
 import { readTar } from "./tarReader";
 
 export const MAX_IMAGE_BYTES = 16 * 1024 * 1024;
@@ -64,12 +64,16 @@ export interface ImportSummary {
 }
 
 const VARIANTS: ImageVariant[] = ["default", "7", "12"];
+/** Marker written first in the temp dir; its absence before the swap means the dir was swept/recreated by someone else. */
+const OWNER_MARKER = ".import-owner";
 
 export async function importFirmwareImages(opts: {
 	source: string;
 	storageDir: string;
-	/** Removal knobs (injectable rm/sleep for tests). */
-	cleanup?: RemoveOptions;
+	/** Removal/sweep knobs (injectable rm/sleep/now/minAgeMs for tests). */
+	cleanup?: SweepOptions;
+	/** Test hook: runs right before the temp dir is verified and swapped in. */
+	beforeSwap?: (tmpDir: string) => void;
 	/** Receives cleanup warnings (default console.warn). */
 	logger?: (message: string) => void;
 }): Promise<ImportSummary> {
@@ -89,10 +93,11 @@ export async function importFirmwareImages(opts: {
 
 	const root = join(storageDir, "firmware-images");
 	mkdirSync(root, { recursive: true });
-	// Sweep before creating this import's temp dir so it can never be swept.
+	// Sweep before creating this import's temp dir. The sweep skips fresh entries (other imports), restores stranded .old-<version>-*.
 	for (const f of (await sweepLeftovers(root, opts.cleanup)).failed) log(`Could not remove leftover firmware cache directory ${f.name}: ${f.error}`);
 	const tmp = join(root, `.tmp-${randomBytes(6).toString("hex")}`);
 	mkdirSync(tmp);
+	writeFileSync(join(tmp, OWNER_MARKER), "");
 
 	try {
 		const images: ImportedManifest["images"] = { default: {}, "7": {}, "12": {} };
@@ -133,13 +138,26 @@ export async function importFirmwareImages(opts: {
 		writeFileSync(join(tmp, "manifest.json"), JSON.stringify(out, null, 2) + "\n");
 
 		const target = join(root, version);
-		const old = join(root, `.old-${randomBytes(6).toString("hex")}`);
+		const old = join(root, `.old-${version}-${randomBytes(6).toString("hex")}`);
 		const hadOld = existsSync(target);
 		const previousCounts = hadOld ? readCounts(join(target, "manifest.json")) : undefined;
 		if (previousCounts && VARIANTS.some((v) => counts[v] < previousCounts[v])) {
 			return { firmwareVersion: version, dir: target, counts, rejected, importedAt, replaced: false, keptExisting: true, previousCounts };
 		}
-		if (hadOld) renameSync(target, old);
+		opts.beforeSwap?.(tmp);
+		if (!existsSync(join(tmp, OWNER_MARKER)) || !existsSync(join(tmp, "manifest.json"))) {
+			throw new Error("The import was interrupted: its temporary directory was removed or modified by another process. The previous cache was left untouched; try again.");
+		}
+		unlinkSync(join(tmp, OWNER_MARKER));
+		if (hadOld) {
+			renameSync(target, old);
+			try {
+				const t = new Date();
+				utimesSync(old, t, t); // renaming keeps the old mtime; refresh it so the sweep age rule protects this swap
+			} catch {
+				/* best-effort */
+			}
+		}
 		try {
 			renameSync(tmp, target);
 		} catch (e) {
