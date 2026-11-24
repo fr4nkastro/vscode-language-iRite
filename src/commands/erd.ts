@@ -67,32 +67,35 @@ class ErdPanel {
   this.refreshPending = false;
   this.render(false);
  }
- private selectedTarget(): string | undefined {
+ private selectedTarget(): { readable?: string; writable?: string; ambiguous: boolean } {
   const dir = path.dirname(this.mainSrc);
-  const name = fs.readdirSync(dir).filter(n => /\.rev$/i.test(n)).sort((a,b) => a.toLowerCase() === 'main.rev' ? -1 : b.toLowerCase() === 'main.rev' ? 1 : a.localeCompare(b))[0];
-  return name ? path.join(dir, name) : undefined;
+  const names = fs.readdirSync(dir).filter(n => /\.rev$/i.test(n)).sort((a,b) => a.toLowerCase() === 'main.rev' ? -1 : b.toLowerCase() === 'main.rev' ? 1 : a.localeCompare(b));
+  const preferred = names.filter(n => n.toLowerCase() === 'main.rev');
+  const writable = preferred.length === 1 ? preferred[0] : preferred.length === 0 && names.length === 1 ? names[0] : undefined;
+  return { readable: names[0] ? path.join(dir, names[0]) : undefined, writable: writable ? path.join(dir, writable) : undefined, ambiguous: names.length > 0 && !writable };
  }
  private render(editing: boolean): void {
   this.generation++;
   try {
    const dir = path.dirname(this.mainSrc);
    this.project = loadIriteProject(this.mainSrc, readText);
-   this.target = this.selectedTarget();
+   const selection = this.selectedTarget();
+   this.target = selection.readable;
    let bytes: Buffer | undefined;
    try { bytes = this.target ? fs.readFileSync(this.target) : undefined; } catch { /* Keep the source-only reader available. */ }
    const rev = bytes ? parseRev(bytes.toString('utf8')) : undefined;
    this.session = undefined;
-   if (bytes && rev && this.target) {
+   if (bytes && rev && this.target && selection.writable === this.target) {
     try {
      const target = this.target;
      const read = (): Buffer => {
       if (this.disposed) throw new Error('Editor closed; nothing was written.');
-      if (this.selectedTarget() !== target) throw new Error('Database target changed on disk; nothing was written. Reopen the editor.');
+      if (this.selectedTarget().writable !== target) throw new Error('Database target changed on disk; nothing was written. Reopen the editor.');
       return fs.readFileSync(target);
      };
      this.session = new ErdEditSession(bytes, createDbSchema(rev), {
       read,
-      confirm: async () => (await vscode.window.showWarningMessage('Save database schema to .rev?', {modal:true, detail:'A backup is made first and ConfigHash is recomputed. Verify the result in Revolution and on a test indicator. main.iri is never written. Renamed, deleted or reordered fields can break existing code.'}, 'Save and keep a backup')) === 'Save and keep a backup',
+      confirm: async () => (await vscode.window.showWarningMessage(`Save database schema to ${path.basename(target)}?`, {modal:true, detail:'A backup is made first and ConfigHash is recomputed. Verify the result in Revolution and on a test indicator. main.iri is never written. Renamed, deleted or reordered fields can break existing code.'}, 'Save and keep a backup')) === 'Save and keep a backup',
       backup: () => { this.backup = backupPath(target, fs.existsSync, new Date()); fs.copyFileSync(target, this.backup, fs.constants.COPYFILE_EXCL); },
       noChanges: () => { void vscode.window.showInformationMessage('iRite: No database schema changes to save.'); },
       write: next => {
@@ -109,6 +112,7 @@ class ErdPanel {
    this.panel.webview.html = renderErdHtml(buildErd(this.project, rev), {
     cspSource:this.panel.webview.cspSource, nonce:crypto.randomBytes(16).toString('base64'), title:`Database diagram: ${path.basename(dir)}`,
     editor:this.session ? {schema:this.session.model, startEditing:editing} : undefined, generation:this.generation,
+    disabledReason:selection.ambiguous ? 'Multiple .rev files make the database write target ambiguous; schema editing is disabled.' : undefined,
    });
   } catch (e) {
    this.panel.webview.html = '<!DOCTYPE html><html><body>Could not render the database diagram.</body></html>';

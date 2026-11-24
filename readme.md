@@ -203,7 +203,10 @@ Run **iRite: Show Database Diagram** for a project containing `main.src`.
 The diagram opens read-only with **Edit schema** off; enable it to edit the
 project's `.rev` database schema in the diagram. **iRite: Edit Database Schema**
 opens the same ERD in edit mode. Without a `.rev`, the diagram remains available,
-but schema editing is disabled with a message.
+but schema editing is disabled with a message. The write target is the unique
+`main.rev` (case-insensitive), or the only `.rev` when no `main.rev` exists.
+Multiple matching `main.rev` names or multiple alternatives without `main.rev`
+leave the diagram readable but disable editing. The confirmation names the target.
 
 Add, rename or delete tables; edit record limits; and add, rename, delete or
 reorder columns and edit their type and size. Unknown type codes are preserved
