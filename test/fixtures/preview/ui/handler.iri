@@ -1,0 +1,14 @@
+handler WidgetClicked;
+    iWidget: integer;
+begin
+    DisableHandler(WidgetClicked);
+    iWidget := EventWidget;
+    if g_tUiStatus.CurrentScreen = g_tUiStatus.Screen.Welcome then
+        handlerScreenWelcome(iWidget);
+    elsif g_tUiStatus.CurrentScreen = g_tUiStatus.Screen.PlateEntry then
+        handlerScreenPlateEntry(iWidget);
+    elsif g_tUiStatus.CurrentScreen = g_tUiStatus.Screen.Notification then
+        handlerScreenNotification(iWidget);
+    end if;
+    EnableHandler(WidgetClicked);
+end;

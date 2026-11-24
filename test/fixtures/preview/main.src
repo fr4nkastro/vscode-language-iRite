@@ -1,0 +1,5 @@
+program main;
+#include main.iri
+#include ui\types.iri
+#include ui\main.iri
+#include ui\handler.iri

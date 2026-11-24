@@ -1,4 +1,4 @@
-import type { IriteField, IriteFileModel, IriteInclude, IriteRoutine } from './model';
+import type { IriteCall, IriteField, IriteFileModel, IriteInclude, IriteRoutine } from './model';
 import { joinTokens, tokenize, type Token } from './tokenizer';
 
 /** Words that are never call targets / bare routine references. */
@@ -430,13 +430,43 @@ class Parser {
 			}
 			const next = this.tokens[k + 1];
 			const prev = this.tokens[k - 1];
+			if (next?.text !== '(' && prev?.text !== '.') {
+				this.noteIdRef(routine, t);
+				this.noteLiteralAssign(routine, k);
+			}
 			if (next?.text === '(') {
 				const close = this.matchParen(k + 1);
 				const args = close === -1 ? [] : splitArgs(this.tokens.slice(k + 2, close));
-				routine.calls.push({ callee: t.text, args, line: t.line, conditions: [...conditions] });
+				const call: IriteCall = { callee: t.text, args, line: t.line, conditions: [...conditions] };
+				if (close !== -1 && this.tokens[close].line > t.line) {
+					call.endLine = this.tokens[close].line;
+				}
+				routine.calls.push(call);
 			} else if (next?.text !== ':=' && next?.text !== '.' && prev?.text !== '.' && next?.text !== ':') {
 				routine.calls.push({ callee: t.text, args: [], line: t.line, conditions: [...conditions], parameterless: true });
 			}
+		}
+	}
+
+	/** Records one identifier use per name and line. */
+	private noteIdRef(routine: IriteRoutine, t: Token): void {
+		const refs = (routine.idRefs ??= []);
+		if (!refs.some(r => r.line === t.line && r.name.toLowerCase() === t.lower)) {
+			refs.push({ name: t.text, line: t.line });
+		}
+	}
+
+	/** Records `a.b.c := 12;` starting at token index k (the first segment of the path). */
+	private noteLiteralAssign(routine: IriteRoutine, k: number): void {
+		let j = k + 1;
+		let target = this.tokens[k].text;
+		while (this.tokens[j]?.text === '.' && this.tokens[j + 1]?.kind === 'id') {
+			target += '.' + this.tokens[j + 1].text;
+			j += 2;
+		}
+		const value = this.tokens[j + 1];
+		if (this.tokens[j]?.text === ':=' && value?.kind === 'num' && /^\d+$/.test(value.text)) {
+			(routine.literalAssigns ??= []).push({ target, value: Number(value.text), line: this.tokens[k].line });
 		}
 	}
 

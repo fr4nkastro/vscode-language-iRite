@@ -2,6 +2,9 @@ ChangeLog
 =========
 
 #### Unreleased
+- `iRite: Preview Screens` inspection upgrades (read-only, nothing is written to the `.rev`): 7"/12" panel selector with uniform widget scaling, a widget list synchronised with the canvas, hide/show per widget, preview-only bring-to-front / send-to-back, references grouped by file and routine (now including assignments and plain comparisons), screen names from `UiScreen` and the `WidgetClicked` entry point of each screen. Hidden widgets and z-order survive refreshes of the same panel.
+- Fix: selecting or hovering a widget in the preview no longer lifts it above the others (a full-screen background hid every widget on its screen); selection is now an outline overlay.
+- Generated `screens.md` now also lists references that are not call arguments (marked `(reference)`).
 - New command `iRite: Show Call Map`: read-only, C4-style interactive map of how modules and routines call each other. Level 1 system (plus `.rev` scales, ports, DIO and databases), Level 2 modules grouped by folder with call-count edges (click an edge to list the calls with file:line), Level 3 routines with their callers and callees, breadcrumb, case-insensitive routine search, go to definition / call site, optional built-ins group and folder collapse.
 - SFC diagram is now editable: drag steps and transition bars, add/move/remove bend points on lines (double-click or Alt+click a line), and the layout is saved to `.vscode/irite-sfc.layout.json` (keyed by step/transition name, never writes `.src`/`.iri`/`.rev`). `Reset layout` button and `iRite: Reset SFC Layout` command restore the automatic layout. Zoom/pan are kept across refreshes.
 - SFC diagnostics now appear in the Problems panel (collection `irite-sfc`) with real severities (no target = Error, unreachable / never emitted = Warning, no entry routine = Information) and file/line; they are cleared when the SFC tab is closed.

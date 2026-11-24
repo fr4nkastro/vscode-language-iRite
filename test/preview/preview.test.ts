@@ -41,14 +41,14 @@ describe("buildScreenView", () => {
 		const v = buildScreenView(rev, project(SRC));
 		const all = v.screens.flatMap((s) => s.widgets);
 		const lbl3 = all.find((w) => w.alias === "lbl3")!;
-		expect(lbl3.references).toEqual([{ file: "a.iri", line: 3, callee: "SetLabelText" }]);
+		expect(lbl3.references).toEqual([{ file: "a.iri", line: 3, callee: "SetLabelText", routine: "P" }]);
 		const lbl4 = all.find((w) => w.alias === "lbl4")!;
-		expect(lbl4.references).toEqual([{ file: "a.iri", line: 5, callee: "SetLabelText" }]);
+		expect(lbl4.references).toEqual([{ file: "a.iri", line: 5, callee: "SetLabelText", routine: "P" }]);
 	});
 	it("includes condition references and none without a project", () => {
 		const v = buildScreenView(rev, project(SRC.replace("IMIN", "imIn")));
 		const w = v.screens.flatMap((s) => s.widgets).find((x) => x.alias === "imIn")!;
-		expect(w.references).toContainEqual({ file: "a.iri", line: 7, callee: "(condition)" });
+		expect(w.references).toContainEqual({ file: "a.iri", line: 7, callee: "(condition)", routine: "P" });
 		const none = buildScreenView(rev);
 		expect(none.screens.every((s) => s.widgets.every((x) => x.references.length === 0))).toBe(true);
 	});
@@ -96,5 +96,17 @@ describe("renderScreensHtml", () => {
 		expect(h).not.toContain("<img src=x>");
 		expect(h).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
 		expect(h.match(/<script/g)?.length).toBe(1);
+	});
+	it("never lifts a hovered or selected widget in paint order (selection is an overlay)", () => {
+		const css = html.match(/<style>([\s\S]*?)<\/style>/)![1];
+		const widgetRules = css.split("}").filter((r) => /\.w[.:]/.test(r.split("{")[0]) && /hover|\.sel/.test(r.split("{")[0]));
+		for (const r of widgetRules) {
+			expect(r).not.toMatch(/z-index/);
+			expect(r).not.toMatch(/outline/);
+		}
+		expect(css).toMatch(/\.ovl\{[^}]*pointer-events:none/);
+		const n = buildScreenView(rev).screens.length;
+		expect(html.match(/<div class="ovl sel"/g)?.length).toBe(n);
+		expect(html.match(/<div class="ovl hov"/g)?.length).toBe(n);
 	});
 });

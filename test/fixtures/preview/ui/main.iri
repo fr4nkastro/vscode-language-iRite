@@ -1,0 +1,43 @@
+procedure SetUiScreen(Value: UiScreen);
+begin
+    g_tUiStatus.Screen := Value;
+end;
+
+procedure uiLoadSettingsUi;
+    tScreen: UiScreen;
+begin
+    tScreen.Welcome:=1;
+    tScreen.Error:=6;
+    tScreen.PlateEntry:=12;
+    tScreen.Notification:=6;
+    SetUiScreen(tScreen);
+end;
+
+procedure uiShowPlate;
+begin
+    g_sPlate := "";
+    SetLabelText(lblPlaca, g_sPlate);
+    SetWidgetVisibility(imLoad, 0);
+end;
+
+procedure handlerScreenWelcome(iWidget: integer);
+begin
+    if iWidget = imLoad then
+        uiShowPlate;
+    end if;
+end;
+
+procedure handlerScreenPlateEntry(iWidget: integer);
+begin
+    if iWidget = btnOk then
+        uiShowPlate;
+    end if;
+    g_iLast := lblPlaca;
+end;
+
+procedure handlerScreenNotification(iWidget: integer);
+begin
+    SetWidgetVisibility(
+        lblTitle,
+        1);
+end;

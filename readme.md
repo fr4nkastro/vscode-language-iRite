@@ -68,22 +68,44 @@ file (walking upwards) or in the workspace.
 
 It shows every 1280 screen of the project (widgets from the `.rev`, images
 from `sdimages/`), a screen selector and an "All screens" thumbnail grid.
-Hover or click a widget to see its id, type, alias, geometry, raw fields and
-the code (`main.src` and its `#include`s) that references its alias; click a
-reference to open it. The panel refreshes when the `.rev` or sources change.
+The panel refreshes when the `.rev` or sources change.
+
+-   **Panel size**: `7" 800x480` (default, the size `.rev` coordinates are
+    authored for) or `12" 1280x800`. On 12" every widget is scaled by 1.6
+    (uniform scale, so authored proportions are kept) and the leftover 32 px
+    is drawn as a hatched letterbox band. Switching back restores 7".
+-   **Widget list** (beside the canvas, below it on narrow views): every
+    widget of the screen with id, type, alias, x/y/w/h and reference count.
+    Selecting a row selects the widget on the canvas and vice versa. Hover and
+    selection are drawn as an outline overlay, so selecting a full-screen
+    background never hides the widgets above it.
+-   **Hide / show** a widget with the eye icon to see what sits behind it;
+    *Show all* restores the screen. **Bring to front / send to back**
+    (arrow buttons) override the paint order to inspect stacking; *Reset order*
+    restores it. All of this is **preview only**: it is kept per panel
+    (`vscode.setState` and the extension's memory, so it survives refreshes)
+    and is never written to the `.rev`.
+-   **Code links**: click a widget to see its references grouped by file and
+    routine (call arguments, `if`/`elsif` conditions and any other use, such as
+    an assignment or a plain comparison); each one opens `file:line`. The screen
+    header shows the screen name (from the `UiScreen` record assigned in
+    `uiLoadSettingsUi`, as in the IPESAH projects) and the routine that
+    `handler WidgetClicked` dispatches to for that screen (its entry point).
 
 Limitations:
 
 -   Read-only: the `.rev` and sources are never modified.
--   Screen size is assumed to be 800x388 px (usable area); the real panel
-    may include a fixed header.
+-   7" usable area is 800x388 px (800x480 panel minus a 92 px header). For
+    12" the header height (92 x 1.6 = 147 px) and the position of the
+    letterbox band are **assumptions**, not measured on a real 12" unit.
 -   Paint order is assumed to be widget id ascending.
 -   Some `.rev` fields are still unknown (e.g. label alignment); unknown
     widget types are drawn as hatched boxes.
 -   Built-in images (`local://N.png`) and missing files are drawn as dashed
     placeholders.
 -   Scales show a sample weight; screen names are not stored in the `.rev`,
-    so screens are identified by number.
+    so they are read from the code convention above and screens are always
+    identified by number too.
 
 ### Database diagram (ERD)
 

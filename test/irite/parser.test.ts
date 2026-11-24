@@ -185,3 +185,43 @@ describe('program body and array types', () => {
 		expect(m.routines.map(r => [r.name, r.calls.map(c => c.callee)])).toEqual([['Init', []], ['demo', ['Init', 'Run']]]);
 	});
 });
+
+describe('identifier uses and literal assignments', () => {
+	const src = [
+		'procedure P(iW: integer);', // 1
+		'  tS: Rec;', // 2
+		'begin', // 3
+		'  tS.Welcome := 1;', // 4
+		'  g_x := lbl1;', // 5
+		'  if iW = btn2 then', // 6
+		'    Foo(lbl3, tS.Field);', // 7
+		'  end if;', // 8
+		'  SetText(', // 9
+		'    lbl4,', // 10
+		'    "lbl9");', // 11
+		'end;',
+	].join('\n');
+	const r = parseIriteSource(src, 'a.iri').routines[0];
+
+	it('records bare identifier uses with their line, outside calls too', () => {
+		const at = (n: string) => r.idRefs?.filter(x => x.name.toLowerCase() === n).map(x => x.line);
+		expect(at('lbl1')).toEqual([5]);
+		expect(at('btn2')).toEqual([6]);
+		expect(at('lbl3')).toEqual([7]);
+		expect(at('lbl4')).toEqual([10]);
+	});
+	it('does not record call names, fields after a dot or string contents', () => {
+		const names = r.idRefs?.map(x => x.name.toLowerCase()) ?? [];
+		expect(names).not.toContain('foo');
+		expect(names).not.toContain('settext');
+		expect(names).not.toContain('field');
+		expect(names).not.toContain('lbl9');
+	});
+	it('records numeric literal assignments to dotted paths', () => {
+		expect(r.literalAssigns).toEqual([{ target: 'tS.Welcome', value: 1, line: 4 }]);
+	});
+	it('keeps the existing call model unchanged and adds the last line of multi-line calls', () => {
+		expect(r.calls.map(c => [c.callee, c.line])).toEqual([['Foo', 7], ['SetText', 9]]);
+		expect(r.calls.map(c => c.endLine)).toEqual([undefined, 11]);
+	});
+});
