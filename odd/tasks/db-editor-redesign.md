@@ -41,6 +41,18 @@ S14 — Delivery:
 - Add a task and Log entry (keep L1) and commit the doc with git add -f. No absolute local paths in the doc.
 - Same constraints as before: TDD, focused checks then npm run typecheck, npm test, npm run compile once at the end via a foreground gentle-ai-worker; Conventional Commits with git -c user.name="Allan Castro" -c user.email=it@ipesah.com, no co-author lines; no push/PR/merge; no native review; do not delete scratch (list as <scratch> placeholders); finish in the foreground.
 
+S15 — Visual fidelity at 1280×800 (approved proposal HTML and target image in `<visual-scratch>`):
+1. Top toolbar: "Database: <name>" title, a segmented Diagram / Edit schema toggle, then right-aligned status ("No unsaved changes" / "N pending changes", error badge with count), Discard (secondary) and Save (primary).
+2. Sidebar table list: "TABLES n/128" header with add (+) icon button, filter input full width, one row per table (name left, "3 fields · 39.0 KB" right, thin size bar under it, dirty/error dot), only the selected row highlighted (list.activeSelection), hover = list.hoverBackground.
+3. Detail header: labelled inputs ("Table name" with "7/8 chars" counter under it, "Max records" with "up to 2,000,000"), then inline stats "Fields 3/100 · Record 39 B · Table 39.0 KB", and icon buttons (duplicate/delete) at the right.
+4. Fields grid: drag handle, #, NAME, TYPE (full width select), SIZE (right aligned; read-only/greyed for fixed-size types), BYTES (right aligned), and icon buttons ↑ ↓ 🗑 (codicon-like, use plain Unicode or inline SVG, no external fonts) instead of blue text buttons. Row separators, comfortable row height (~36px). "+ Add field" link-style button with the "or press Enter in the last field name" hint.
+5. Optional collapsible "iRite declaration preview" (`<details>`) showing the main.iri hint for the selected table.
+6. Status footer pinned at the bottom: Storage bar "4.67 MB / 460 MB", Tables bar "6 / 128", Records total, and "● n errors ▲ n warnings" at the right. Human-readable byte units (B, KB, MB) everywhere instead of raw byte counts.
+7. Layout fills the webview height (sidebar and detail scroll independently, footer fixed), no outer bordered box, no stray fieldset border.
+8. Colors only from `--vscode-*` variables (with sensible fallbacks), correct in light, dark and high contrast; dirty = gitDecoration modified, added = gitDecoration added, removed = gitDecoration deleted + strikethrough; errors = inputValidation/errorForeground. Keyboard focus visible (focusBorder).
+
+S16 — "Keep the hook ids/data attributes the controller and tests use; update tests only where markup legitimately changed, add tests for: only the selected table has the selected class, fixed-size inputs are readonly, byte formatting helper (pure, unit-tested), footer totals." Iterate and inspect PNGs; retain dark, light and high contrast renders. Delivery and final-check constraints from S14 still apply.
+
 ## Tasks
 - [x] T1 — S8, S10 — Foreground worker: document the S8 fallback after inconclusive REA inspection — `a34410d`.
 - [x] T4 — S2–S6, S9–S10 — Foreground worker: pure draft, validation locations and estimates — `b81b132`.
@@ -50,6 +62,8 @@ S14 — Delivery:
 - [x] T3 — S1–S10 — Independent high-risk verification and foreground worker final checks — tested `30953fe`; evidence in this tracking commit.
 
 - [x] T7 — S11–S14 — Resolve the approved review's non-blocking findings via bounded foreground workers; independent verification for named risk items; foreground final checks — `0779301`, `4630357`, `42cf916`; evidence in this tracking commit.
+
+- [x] T8 — S15–S16 — Foreground worker: approved visual fidelity, browser captures, and focused tests; foreground final checks — `716ff23`; evidence in this tracking commit.
 
 ## Log
 L1: Delega a gentle-shell con gpt la mejora de la visualización del editor de db de la extensión
@@ -69,3 +83,6 @@ L14: Delivery: feature-branch-chain. Risk item 3 (shared validator and draft hel
 L15: Focused RED/GREEN: limits 1 failed then 49 passed; renderer-assertion migration 13 passed; move and VM 5 failed then 68 passed; watcher 1 failed then 69 passed after removing an unused confirmation mock that leaked across tests. Populated CSP checks passed without production CSP changes.
 L16: Independent verification on `42cf916`: diff check passed; 108 focused tests passed; seven validator fixture groups matched baseline and the delayed-message watcher probe passed. The implementation-worker differential also matched baseline for 15 fixture groups across existing callers. Retained paths: `<scratch:validator-differential>`, `<scratch:verifier-preparation>`, `<scratch:verifier-probes>`. No real browser, Revolution, or device checks.
 L17: Foreground final checks on `42cf916`, once each: `npm run typecheck` exit 0; `npm test` exit 0 (64 files, 659 passed, 7 skipped); `npm run compile` exit 0. Compile outputs remain ignored. No push, PR, merge, or native review.
+
+L18: "Visual fidelity pass on the redesigned database schema editor (branch `feat/db-editor-redesign`, this cwd, feature doc `odd/tasks/db-editor-redesign.md`). The behaviour is in place and tested, but the rendered UI does not look like the approved proposal. Make it match the proposal's look and layout while keeping all behaviour, tests and the strict CSP." Visual evidence and render scripts are in `<visual-scratch>`; retain all scratch. Delivery: feature-branch-chain.
+L19: T8 RED 8 failed/1 passed; focused GREEN 21 files/119 passed. CSP-enforced Chromium renders at 1280x800 (dark, light, high contrast, dirty, narrow, diagram) showed no page or CSP errors, one selected row, pinned footer. S15.5 preview skipped (no per-table declaration source); duplicate not shipped (no existing action). Footer counts the global limits-unconfirmed warning. Final checks once: typecheck 0; test 0 (66 files, 670 passed, 7 skipped); compile 0. Renders in `<visual-scratch>/shots`. No native review.
