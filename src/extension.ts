@@ -8,6 +8,7 @@ import { registerCallMapCommands } from "./commands/callMap";
 import { registerDocsCommands } from "./commands/docs";
 import { registerDbAccess } from "./commands/dbAccess";
 import { registerFirmwareImages, sweepFirmwareCacheOnActivation } from "./commands/firmwareImages";
+import { registerDbSchemaEditor } from "./commands/dbSchemaEditor";
 
 export function activate(context: vscode.ExtensionContext): void {
   const channel = vscode.window.createOutputChannel("iRite Information");
@@ -24,6 +25,7 @@ export function activate(context: vscode.ExtensionContext): void {
   registerDbAccess(context);
   registerFirmwareImages(context);
   sweepFirmwareCacheOnActivation(context);
+  registerDbSchemaEditor(context);
 }
 
 export function deactivate(): void {

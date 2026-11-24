@@ -9,6 +9,7 @@ Code. It supports:
 -   Preprocessing
 -   Compiling
 -   Deployment to Indicator
+-   Opt-in database schema editing with backup and generated `main.iri` hints
 
 Installation
 ============
@@ -196,6 +197,41 @@ viewers may restrict local file access and the SVG is not portable without the
 cache. Generated project documentation uses the selected cache's 7-inch variant
 in the same way; regenerate it after importing.
 
+### Database schema editor (opt-in)
+
+Run **iRite: Show Database Diagram** for a project containing `main.src`.
+The diagram opens read-only with **Edit schema** off; enable it to edit the
+project's `.rev` database schema in the diagram. **iRite: Edit Database Schema**
+opens the same ERD in edit mode. Without a `.rev`, the diagram remains available,
+but schema editing is disabled with a message. The write target is the unique
+`main.rev` (case-insensitive), or the only `.rev` when no `main.rev` exists.
+Multiple matching `main.rev` names or multiple alternatives without `main.rev`
+leave the diagram readable but disable editing. The confirmation names the target.
+
+Add, rename or delete tables; edit record limits; and add, rename, delete or
+reorder columns and edit their type and size. Unknown type codes are preserved
+as raw values and their columns cannot be edited. Use **Apply table** or
+**Apply column** to send typed values to the draft. **Revert unsent edits**
+only resets values not yet applied; it does not undo changes already in the
+draft. Apply or revert pending values before other actions, switching modes or
+saving. Validation errors appear in the view and block **Save**.
+
+**Save** explicitly writes the draft: it asks for confirmation, backs up the
+original, refuses a stale file, recomputes `ConfigHash`, writes atomically and
+checks the schema by reading it back. Saving with no changes reports that fact.
+If a write or readback fails after writing starts, restore the backup before
+continuing. Re-run either database diagram command to reload the file from disk;
+the recovery warning remains visible, and the editor does not retry the write.
+Watcher refresh is deferred while editing or while other pending work blocks it.
+Cancelling confirmation leaves the draft visible while editing, but permits a
+deferred refresh after editing ends.
+The editor never writes `main.iri`: after saving, regenerate it in Revolution
+or use the displayed declarations and constants. Renames, deletions and field
+order changes can break existing code and DB access routines; review both.
+Limits and type/size combinations remain unconfirmed. Opening an edited file in
+Revolution and loading it on an indicator remain unverified; check both before
+production and keep the backup.
+
 ### Database diagram (ERD)
 
 Run **iRite: Show Database Diagram** from the Command Palette. The extension
@@ -261,8 +297,9 @@ The automatic layout can be refined by hand; the sources are never touched.
     shows the automatic layout, says so in the side panel and does not
     overwrite the file.
 
-The ERD is read-only. Both diagrams refresh when the
-sources or `.rev` change.
+The ERD is read-only until schema editing is enabled; the SFC layout editor
+never writes the sources or `.rev`. Both diagrams refresh when the sources or
+`.rev` change.
 
 ### Call map (modules and routines)
 

@@ -39,6 +39,11 @@ const implemented = (): string =>
 	deriveExpected(db(TRANS), 'db').map(e => renderStub(e).replace(PENDING_MARKER, '-- implemented')).join('\n');
 
 describe('deriveExpected', () => {
+	it('parses database declarations identically with CRLF and LF', () => {
+		const crlf = TRANS.replace(/\n/g, '\r\n');
+		expect(db(crlf)).toEqual(db(TRANS));
+		expect(deriveExpected(db(crlf), 'db')).toEqual(deriveExpected(db(TRANS), 'db'));
+	});
 	it('derives the standard set from the declaration (4 CRUD + record + 2 per field + search)', () => {
 		const exp = deriveExpected(db(TRANS), 'db');
 		expect(exp.map(e => e.name)).toEqual([
@@ -203,7 +208,7 @@ describe('scaffold', () => {
 	it('creates a new module, includes it right after the declaring file, and is idempotent', () => {
 		const first = applyScaffold(args('Vehicles'));
 		expect(first.files.map(f => rel(f.path))).toEqual(['src/db/Vehicles.iri']);
-		expect(first.mainSrc!.text.split('\n').slice(0, 5)).toEqual([
+		expect(first.mainSrc!.text.split(/\r?\n/).slice(0, 5)).toEqual([
 			'program main;', '', '--Generated', '#include main.iri', '#include src\\db\\Vehicles.iri',
 		]);
 		// Re-run on the produced state: stubs are now pending, nothing to add, include not duplicated.

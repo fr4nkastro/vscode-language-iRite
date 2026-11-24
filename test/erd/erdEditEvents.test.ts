@@ -1,0 +1,30 @@
+import { it, expect } from 'vitest';
+import { runInNewContext } from 'node:vm';
+import { renderErdHtml } from '../../src/erd/erdHtml';
+
+it('keeps unsent row edits, blocks destructive actions and save, and allows revert', () => {
+ const listeners: Record<string, Record<string, (e: any) => void>> = {};
+ const posts: any[] = [];
+ const nodes: Record<string, any> = {};
+ for (const id of ['erd','vp','edit-toggle','readonly-view','edit-view','edit-feedback','edit-save','edit-toolbar','add-table','edit-revert','edit-notice']) nodes[id] = { style: {}, checked: true, setAttribute() {}, addEventListener(type: string, cb: (e: any) => void) { (listeners[id] ??= {})[type] = cb; } };
+ const table = { dataset: { table: '1' }, querySelector: (s: string) => ({ value: s.includes('maxRecords') ? ' ' : 'Table' }) }; 
+ const row = { dataset: { field: '1' } };
+ const button = { dataset: { action: 'deleteField' }, closest: (s: string) => s === 'button[data-action]' ? button : s === '[data-table]' ? table : s === '[data-field]' ? row : null };
+ const input = { tagName: 'INPUT', value: 'pending', defaultValue: 'original', matches: () => true };
+ const doc = { getElementById: (id: string) => nodes[id], querySelectorAll: () => [], activeElement: button };
+ const win = { addEventListener(type: string, cb: (e: any) => void) { (listeners.window ??= {})[type] = cb; } };
+ const html = renderErdHtml({ tables: [], relations: [], diagnostics: [] }, { cspSource: 'vscode:', nonce: 'abc', title: 'x' });
+ runInNewContext(html.match(/<script nonce="abc">([\s\S]*?)<\/script>/)![1], { document: doc, window: win, acquireVsCodeApi: () => ({ postMessage: (m: any) => posts.push(m) }) });
+ listeners['edit-view'].input({ target: input });
+ listeners['edit-view'].click({ target: button });
+ listeners['edit-save'].click({});
+ expect(posts).toHaveLength(0);
+ expect(input.value).toBe('pending'); expect(nodes['edit-notice'].textContent).toContain('revert');
+ listeners['edit-revert'].click({});
+ expect(input.value).toBe('original');
+ const apply = { dataset: { action: 'updateTable' }, closest: (s: string) => s === 'button[data-action]' ? apply : s === '[data-table]' ? table : null };
+ listeners['edit-view'].click({ target: apply });
+ expect(posts).toHaveLength(0); expect(nodes['edit-notice'].textContent).toContain('cannot be blank');
+ listeners['edit-view'].click({ target: button });
+ expect(posts).toHaveLength(1);
+});

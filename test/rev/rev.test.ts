@@ -3,8 +3,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseRev, resolveImage } from "../../src/rev";
 
-// Fixture is stored LF without BOM; the real Revolution format is BOM + CRLF.
-const lf = readFileSync(join(__dirname, "../fixtures/rev/sample.rev"), "utf8");
+// Normalize checkout line endings before constructing both fixture variants.
+const lf = readFileSync(join(__dirname, "../fixtures/rev/sample.rev"), "utf8").replace(/\r\n/g, "\n");
 const raw = "\uFEFF" + lf.replace(/\n/g, "\r\n");
 const model = parseRev(raw);
 const w = (id: number) => model.widgets.find((x) => x.id === id)!;
@@ -13,6 +13,11 @@ describe("parseRev text handling", () => {
   it("gives the same model with BOM+CRLF, no BOM, and LF", () => {
     expect(parseRev(lf)).toEqual(model);
     expect(parseRev(raw.slice(1))).toEqual(model);
+  });
+  it("parses a CRLF database fixture without retaining line endings", () => {
+    const crlf = "<Indicator>\r\n<Config>\r\nDB.SCHEMA#3=20,0,Id,3,4\r\nDB.ALIAS#3=Orders\r\n</Config>\r\n</Indicator>";
+    expect(parseRev(crlf).databases).toEqual([{ index: 3, name: "Orders", maxRecords: 20, fields: [{ name: "Id", typeCode: 3, typeName: "integer", size: 4 }] }]);
+    expect(parseRev(crlf)).toEqual(parseRev(crlf.replace(/\r\n/g, "\n")));
   });
   it("reads the header", () => {
     expect(model.header).toEqual({
