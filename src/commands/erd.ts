@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { buildErd } from '../erd/erdModel';
 import { renderErdHtml, renderErdReadonly } from '../erd/erdHtml';
-import { renderErdEditState } from '../erd/erdEdit';
+import { canSaveErdDraft, renderErdDraft } from '../erd/erdDraftHtml';
 import { ErdEditSession, projectSource } from '../erd/erdEditSession';
 import { createDbSchema } from '../dbschema/model';
 import { atomicDbWrite } from '../dbschema/workflow';
@@ -15,6 +15,14 @@ import { parseRev } from '../rev';
 import { locateMainSrc, readText } from './locateProject';
 
 const VIEW_TYPE = 'irite.showErd';
+
+/** Only host-owned table keys may select a detail; otherwise use the renderer's first-table fallback. */
+function draftReply(session: ErdEditSession, requested: unknown) {
+ const draft = session.view;
+ const selected = draft.tables.find(t => t.key === requested)?.key ?? draft.tables[0]?.key;
+ const disabled = session.unusable || session.busy;
+ return {draft, selected, fragment:renderErdDraft(draft, selected), count:draft.count, canSave:canSaveErdDraft(draft) && !disabled, disabled, hint:session.hint};
+}
 
 class ErdPanel {
  private static panels = new Map<string, ErdPanel>();
@@ -144,7 +152,7 @@ class ErdPanel {
     this.session.editing = msg.editing;
     if (msg.editing) this.aliasPending = false;
    }
-   await this.panel.webview.postMessage({type:'erd-edit-mode-state', generation:this.generation, editing:!!this.session?.editing});
+   await this.panel.webview.postMessage({type:'erd-edit-mode-state', generation:this.generation, editing:!!this.session?.editing, ...(this.session ? draftReply(this.session, msg.selected) : {})});
    this.refreshIfSafe();
    return;
   }
@@ -152,14 +160,11 @@ class ErdPanel {
   const session = this.session;
   const result = await session.request(msg.message);
   if (this.disposed || session !== this.session) return;
-  const request = msg.message as {type?: unknown} | null;
-  if (request?.type === 'edit' && !result.message) this.staged = session.hasChanges;
-  if (result.saved || (request?.type === 'save' && !result.message)) this.staged = false;
+  this.staged = session.hasChanges;
   if (session.unusable && result.message) this.recoveryMessage = result.message;
-  const state = renderErdEditState(session.model, {hint:session.hint, message:result.message});
   const readonly = result.saved ? renderErdReadonly(buildErd(this.project, parseRev(session.readback.toString('utf8')))) : undefined;
   if (result.saved) void vscode.window.showInformationMessage(`iRite: database schema saved. Backup: ${path.basename(this.backup)}. Regenerate main.iri; see the editor.`);
-  await this.panel.webview.postMessage({type:'erd-edit-state', generation:this.generation, requestId:msg.requestId, ...state, canSave:state.canSave && !session.unusable, disabled:session.unusable, readonly});
+  await this.panel.webview.postMessage({type:'erd-edit-state', generation:this.generation, requestId:msg.requestId, ...draftReply(session, msg.selected), message:result.message, readonly});
   this.refreshIfSafe();
  }
 }

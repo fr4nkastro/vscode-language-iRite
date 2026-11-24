@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderErdHtml } from '../../src/erd/erdHtml';
-import { renderErdEditState } from '../../src/erd/erdEdit';
+import { ErdDraft } from '../../src/erd/erdDraft';
+import { canSaveErdDraft, renderErdDraft } from '../../src/erd/erdDraftHtml';
 import type { DbSchema } from '../../src/dbschema/model';
 
 const erd = { tables: [], relations: [], diagnostics: [] };
@@ -13,14 +14,15 @@ const schema: DbSchema = { reservedIndexes: [], tables: [
 describe('ERD editing view', () => {
  it('shows safe estimates and warns only above the designer threshold', () => {
   const make = (count: number): DbSchema => ({reservedIndexes: [], tables:[{index:1,name:'T',maxRecords:count,fields:[{name:'A',typeCode:3,typeName:'integer',size:4}]}]});
-  let view = renderErdEditState(make(115000000));
-  expect(view.diagram).toContain('Estimated record: 4 bytes; table: 460000000 bytes');
-  expect(view.feedback).toContain('460000000 bytes / 460000000 bytes');
-  expect(view.feedback).not.toContain('Warning: estimate exceeds');
-  view = renderErdEditState(make(115000001));
-  expect(view.feedback).toContain('Warning: estimate exceeds');
-  view = renderErdEditState(make(Number.MAX_SAFE_INTEGER));
-  expect(view.feedback).toContain('total: unavailable');
+  let view = new ErdDraft(make(115000000)).view();
+  let html = renderErdDraft(view);
+  expect(html).toContain('Bytes per record: 4 · Bytes per table: 460000000');
+  expect(html).toContain('Total bytes: 460000000 / 460000000');
+  expect(html).not.toContain('Designer byte threshold exceeded');
+  view = new ErdDraft(make(115000001)).view(); html = renderErdDraft(view);
+  expect(html).toContain('Designer byte threshold exceeded');
+  view = new ErdDraft(make(Number.MAX_SAFE_INTEGER)).view(); html = renderErdDraft(view);
+  expect(html).toContain('Total bytes: Unknown');
  });
  it('defaults to read-only and explains unavailable rev; preserves navigation', () => {
   const html = renderErdHtml(erd, opts);
@@ -29,21 +31,22 @@ describe('ERD editing view', () => {
   expect(html).toContain('&lt;title&gt;'); expect(html).toContain("script-src 'nonce-abc'");
  });
  it('renders duplicate invalid drafts as indexed editable cards, raw unknown fields and validation', () => {
-  const state = renderErdEditState(schema, { hint: '<hint>', message: '<error>' });
-  expect(state.diagram).toContain('foreignObject');
-  expect(state.diagram).toContain('data-table="1"'); expect(state.diagram).toContain('data-table="2"');
-  expect(state.diagram).toContain('data-action="addField"'); expect(state.diagram).toContain('data-action="deleteTable"');
-  expect(state.diagram).toContain('&lt;raw&gt;'); expect(state.diagram).toContain('99');
-  expect(state.diagram).not.toContain('data-field="1"');
-  expect(state.feedback).toContain('duplicate name'); expect(state.feedback).toContain('&lt;hint&gt;'); expect(state.feedback).toContain('&lt;error&gt;');
-  expect(state.canSave).toBe(false);
+  const view = new ErdDraft(schema).view();
+  const html = renderErdDraft(view);
+  expect(html).not.toContain('foreignObject');
+  expect(html).toContain(`data-table="${view.tables[0].key}"`); expect(html).toContain(`data-table="${view.tables[1].key}"`);
+  expect(html).toContain('data-action="addField"'); expect(html).toContain('data-action="removeTable"');
+  expect(html).toContain('&lt;raw&gt;'); expect(html).toContain('Unknown (99)');
+  expect(html).toMatch(/data-property="typeCode" disabled><option value="99"/);
+  expect(view.issues.some(issue => issue.message.includes('duplicate name'))).toBe(true);
+  expect(canSaveErdDraft(view)).toBe(false);
  });
  it('renders initial edit mode and protocol without replacing the full page', () => {
   const html = renderErdHtml(erd, { ...opts, editor: { schema, startEditing: true } });
-  expect(html).toContain('data-editing="true"'); expect(html).toContain('data-table="1"');
+  expect(html).toContain('let editing = true, available = true'); expect(html).toContain('data-table="draft-1"');
   expect(html).toContain('erd-edit-state'); expect(html).toContain('requestId');
-  expect(html).toContain("kind: action, table, name: '', typeCode: 3, size: 4");
-  expect(html).toContain("kind: 'addTable', name: '', maxRecords: 1");
-  expect(html).toContain('foreignObject'); expect(html).toContain('nonce="abc"');
+  expect(html).toContain("kind:'addField', table, name:'', typeCode:3");
+  expect(html).toContain("kind:'addTable', name:'', maxRecords:'1'");
+  expect(html).not.toContain('foreignObject'); expect(html).toContain('nonce="abc"');
  });
 });

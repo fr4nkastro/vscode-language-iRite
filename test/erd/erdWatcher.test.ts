@@ -19,6 +19,12 @@ vi.mock('../../src/erd/erdModel', async importOriginal => {
  return { ...actual, buildErd: (project: Parameters<typeof actual.buildErd>[0], rev: Parameters<typeof actual.buildErd>[1]) => { mocks.revs.push(rev); return actual.buildErd(project, rev); } };
 });
 
+async function setName(panel: any, generation: number, requestId: number, value: string): Promise<void> {
+ await panel.receive({type:'erd-edit-request', generation, requestId:10000 + requestId, message:{type:'draft-get'}});
+ const table = panel.webview.postMessage.mock.calls.at(-1)[0].draft.tables[0].key;
+ await panel.receive({type:'erd-edit-request', generation, requestId, message:{type:'draft-action', action:{kind:'setTable',table,property:'name',value}}});
+}
+
 afterEach(() => { vi.useRealTimers(); vi.resetModules(); mocks.commands.clear(); mocks.events.length = 0; mocks.panels.length = 0; mocks.reads.length = 0; mocks.writes.length = 0; mocks.revs.length = 0; mocks.names = ['main.rev']; mocks.disk = Buffer.from('<Indicator><ConfigHash value="x"/><Config>\nDB.SCHEMA#1=10,0,A,3,4\nDB.ALIAS#1=T\n</Config></Indicator>'); mocks.corrupt = false; mocks.backups.length = 0; vi.clearAllMocks(); });
 it('refreshes a clean read-only ERD with a rev when the watcher fires', async () => {
  vi.useFakeTimers();
@@ -49,7 +55,7 @@ it('refreshes a clean read-only ERD with a rev when the watcher fires', async ()
  await panel.receive({type:'erd-edit-mode', generation, editing:false});
  expect(panel.webview.html).toBe(refreshed); // alias intent survives the old mode-off acknowledgement
  await panel.receive({type:'erd-edit-mode', generation, editing:true});
- await panel.receive({type:'erd-edit-request', generation, requestId:1, message:{type:'edit', edit:{kind:'updateTable', table:1, name:'Changed'}}});
+ await setName(panel, generation, 1, 'Changed');
  await panel.receive({type:'erd-edit-mode', generation, editing:false});
  expect(panel.webview.html).toBe(refreshed); // staged edit survives leaving edit mode
  await panel.receive({type:'erd-edit-mode', generation, editing:true});
@@ -62,7 +68,7 @@ it('refreshes a clean read-only ERD with a rev when the watcher fires', async ()
  finish(undefined); await saving;
  expect(panel.webview.html).toBe(refreshed); // cancelled save preserves the draft while editing
  await panel.receive({type:'erd-edit-mode', generation, editing:false});
- expect(panel.webview.html).not.toBe(refreshed); // cancellation releases the deferred refresh
+ expect(panel.webview.html).toBe(refreshed); // cancelled save must retain the pending draft
 });
 
 it.each([['z.rev', 'a.rev'], ['main.rev', 'MAIN.REV']])('keeps ambiguous targets %s and %s readable but not writable', async (first, second) => {
@@ -74,7 +80,8 @@ it.each([['z.rev', 'a.rev'], ['main.rev', 'MAIN.REV']])('keeps ambiguous targets
  expect(mocks.revs[0]).toBeDefined();
  expect(mocks.reads[0]).toMatch(first === 'z.rev' ? /a\.rev$/ : /main\.rev$/i);
  expect(panel.webview.html).toContain('Multiple .rev files make the database write target ambiguous; schema editing is disabled.');
- expect(panel.webview.html).toMatch(/id="edit-toggle" type="checkbox" disabled/);
+ expect(panel.webview.html).toMatch(/id="edit-mode" type="button" disabled/);
+ expect(panel.webview.html).toContain('let editing = false, available = false');
  const generation = Number(panel.webview.html.match(/const generation = (\d+)/)[1]);
  await panel.receive({type:'erd-edit-mode', generation, editing:true});
  await panel.receive({type:'erd-edit-request', generation, requestId:1, message:{type:'save'}});
@@ -89,9 +96,9 @@ it.each([['main.rev', 'alternate.rev'], ['alternate.rev']])('selects safe target
  await mocks.commands.get('irite.editDatabaseSchema')!();
  const panel = mocks.panels[0];
  expect(mocks.reads[0]).toMatch(new RegExp(names[0].replace('.', '\\.') + '$'));
- expect(panel.webview.html).toMatch(/id="edit-toggle" type="checkbox"\s+checked/);
+ expect(panel.webview.html).toContain('let editing = true, available = true');
  const generation = Number(panel.webview.html.match(/const generation = (\d+)/)[1]);
- await panel.receive({type:'erd-edit-request', generation, requestId:1, message:{type:'edit', edit:{kind:'updateTable', table:1, name:'Changed'}}});
+ await setName(panel, generation, 1, 'Changed');
  await panel.receive({type:'erd-edit-request', generation, requestId:2, message:{type:'save'}});
  const vscode = await import('vscode');
  expect(vi.mocked(vscode.window.showWarningMessage).mock.calls[0][0]).toContain(names[0]);
@@ -105,10 +112,9 @@ it('releases deferred refresh after reverting the model', async () => {
  await mocks.commands.get('irite.editDatabaseSchema')!();
  const panel = mocks.panels[0], initial = panel.webview.html;
  const generation = Number(initial.match(/const generation = (\d+)/)[1]);
- const request = (requestId: number, message: unknown) => panel.receive({type:'erd-edit-request', generation, requestId, message});
- await request(1, {type:'edit', edit:{kind:'updateTable', table:1, name:'Changed'}});
+ await setName(panel, generation, 1, 'Changed');
  mocks.events[0](); vi.advanceTimersByTime(301);
- await request(2, {type:'edit', edit:{kind:'updateTable', table:1, name:'T'}});
+ await setName(panel, generation, 2, 'T');
  expect(panel.webview.html).toBe(initial);
  await panel.receive({type:'erd-edit-mode', generation, editing:false});
  expect(panel.webview.html).not.toBe(initial);
@@ -140,11 +146,11 @@ it.each(['irite.showErd', 'irite.editDatabaseSchema'])('rebuilds an unusable pan
  await mocks.commands.get('irite.editDatabaseSchema')!();
  const panel = mocks.panels[0], initial = panel.webview.html;
  const generation = Number(initial.match(/const generation = (\d+)/)[1]);
- await panel.receive({type:'erd-edit-request', generation, requestId:1, message:{type:'edit', edit:{kind:'updateTable', table:1, name:'Changed'}}});
+ await setName(panel, generation, 1, 'Changed');
  const vscode = await import('vscode');
  vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Save and keep a backup' as any);
  await panel.receive({type:'erd-edit-request', generation, requestId:2, message:{type:'save'}});
- expect(panel.webview.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({disabled:true, feedback:expect.stringMatching(/restore the backup/i)}));
+ expect(panel.webview.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({disabled:true, message:expect.stringMatching(/restore the backup/i)}));
  const writes = mocks.writes.length, reads = mocks.reads.length;
  mocks.disk = Buffer.from(mocks.disk.toString().replace('DB.ALIAS#1=T', 'DB.ALIAS#1=Restored'));
  await mocks.commands.get(command)!();
@@ -153,12 +159,12 @@ it.each(['irite.showErd', 'irite.editDatabaseSchema'])('rebuilds an unusable pan
  expect(panel.webview.html).not.toBe(initial);
  expect(panel.webview.html).toMatch(/restore the backup/i);
  expect(mocks.writes).toHaveLength(writes);
- expect(panel.webview.html).toMatch(command === 'irite.editDatabaseSchema' ? /id="edit-toggle" type="checkbox"\s+checked/ : /id="edit-toggle" type="checkbox"\s*>/);
+ expect(panel.webview.html).toContain(command === 'irite.editDatabaseSchema' ? 'let editing = true, available = true' : 'let editing = false, available = true');
  expect(panel.webview.html).toContain('Restored');
  const rebuiltGeneration = Number(panel.webview.html.match(/const generation = (\d+)/)[1]);
  if (command === 'irite.showErd') await panel.receive({type:'erd-edit-mode', generation:rebuiltGeneration, editing:true});
- await panel.receive({type:'erd-edit-request', generation:rebuiltGeneration, requestId:3, message:{type:'edit', edit:{kind:'updateTable', table:1, name:'EditedAgain'}}});
- expect(panel.webview.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({type:'erd-edit-state', disabled:false, diagram:expect.stringContaining('EditedAgain')}));
+ await setName(panel, rebuiltGeneration, 3, 'EditedAgain');
+ expect(panel.webview.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({type:'erd-edit-state', disabled:false, fragment:expect.stringContaining('EditedAgain')}));
  expect(mocks.writes).toHaveLength(writes);
 });
 
@@ -169,17 +175,58 @@ it('posts readback state and backup name on success, then refreshes after editin
  await mocks.commands.get('irite.editDatabaseSchema')!();
  const panel = mocks.panels[0], initial = panel.webview.html;
  const generation = Number(initial.match(/const generation = (\d+)/)[1]);
- await panel.receive({type:'erd-edit-request', generation, requestId:1, message:{type:'edit', edit:{kind:'updateTable', table:1, name:'Changed'}}});
+ await setName(panel, generation, 1, 'Changed');
  mocks.events[0](); vi.advanceTimersByTime(301);
  const vscode = await import('vscode');
  vi.mocked(vscode.window.showWarningMessage).mockResolvedValueOnce('Save and keep a backup' as any);
  await panel.receive({type:'erd-edit-request', generation, requestId:2, message:{type:'save'}});
  expect(mocks.disk.toString()).toContain('DB.ALIAS#1=Changed');
- expect(panel.webview.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({type:'erd-edit-state', requestId:2, diagram:expect.stringContaining('Changed'), readonly:expect.stringContaining('Changed')}));
+ expect(panel.webview.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({type:'erd-edit-state', requestId:2, fragment:expect.stringContaining('Changed'), readonly:expect.stringContaining('Changed')}));
  expect(vi.mocked(vscode.window.showInformationMessage)).toHaveBeenCalledWith(expect.stringContaining(mocks.backups[0].split(/[\\/]/).pop()!));
  expect(panel.webview.html).toBe(initial);
  await panel.receive({type:'erd-edit-mode', generation, editing:false});
  expect(panel.webview.html).not.toBe(initial);
+});
+
+it('bootstraps a trusted draft and keeps invalid intent across diagram toggles', async () => {
+ const { registerErdCommands } = await import('../../src/commands/erd');
+ registerErdCommands({subscriptions:[]} as any);
+ await mocks.commands.get('irite.editDatabaseSchema')!();
+ const panel = mocks.panels[0], generation = Number(panel.webview.html.match(/const generation = (\d+)/)[1]);
+ const request = (requestId: number, message: unknown) => panel.receive({type:'erd-edit-request',generation,requestId,message});
+ await request(1,{type:'draft-get'});
+ const draft = panel.webview.postMessage.mock.calls.at(-1)[0].draft;
+ expect(draft.schema).toBeUndefined();
+ await request(2,{type:'draft-action',action:{kind:'setTable',table:draft.tables[0].key,property:'name',value:''}});
+ const response = panel.webview.postMessage.mock.calls.at(-1)[0];
+ expect(response.canSave).toBe(false); expect(response.draft.count).toBeGreaterThan(0);
+ await panel.receive({type:'erd-edit-mode',generation,editing:false});
+ await panel.receive({type:'erd-edit-mode',generation,editing:true});
+ expect(panel.webview.postMessage.mock.calls.at(-1)[0].draft.tables[0].name).toBe('');
+ await request(3,{type:'draft-discard'});
+ expect(panel.webview.postMessage.mock.calls.at(-1)[0].draft.tables[0].name).toBe('T');
+ expect(mocks.writes).toEqual([]);
+});
+
+it('replies with trusted selected draft fragments and save metadata', async () => {
+ mocks.disk = Buffer.from('<Indicator><ConfigHash value="x"/><Config>\nDB.SCHEMA#1=10,0,A,3,4\nDB.ALIAS#1=T\nDB.SCHEMA#2=10,0,B,3,4\nDB.ALIAS#2=Second\n</Config></Indicator>');
+ const { registerErdCommands } = await import('../../src/commands/erd');
+ registerErdCommands({subscriptions:[]} as any);
+ await mocks.commands.get('irite.editDatabaseSchema')!();
+ const panel = mocks.panels[0], generation = 1;
+ await panel.receive({type:'erd-edit-request',generation,requestId:1,message:{type:'draft-get'}});
+ const first = panel.webview.postMessage.mock.calls.at(-1)[0];
+ const selected = first.draft.tables[1].key;
+ await panel.receive({type:'erd-edit-mode',generation,editing:true,selected});
+ let reply = panel.webview.postMessage.mock.calls.at(-1)[0];
+ expect(reply).toMatchObject({selected,count:0,canSave:true,disabled:false,fragment:expect.stringContaining(`data-detail data-table="${selected}"`)});
+ await panel.receive({type:'erd-edit-request',generation,requestId:2,selected,message:{type:'draft-action',action:{kind:'setTable',table:selected,property:'name',value:''}}});
+ reply = panel.webview.postMessage.mock.calls.at(-1)[0];
+ expect(reply).toMatchObject({selected,count:1,canSave:false,disabled:false,fragment:expect.stringContaining('data-detail'),draft:expect.objectContaining({tables:expect.any(Array)})});
+ await panel.receive({type:'erd-edit-request',generation,requestId:3,selected:'<untrusted>',message:{type:'draft-get'}});
+ reply = panel.webview.postMessage.mock.calls.at(-1)[0];
+ expect(reply.selected).toBe(first.draft.tables[0].key);
+ expect(reply.fragment).not.toContain('<untrusted>');
 });
 
 it('preserves the no-rev message', async () => {

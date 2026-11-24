@@ -213,11 +213,10 @@ reorder columns and edit their type and size. The picker and diagram show
 Revolution type names; changing type applies its designer default size. Numeric
 codes remain in `.rev`; unknown codes and None (0) are preserved as raw values
 and their columns cannot be edited. Unchanged legacy size combinations are
-preserved with warnings. Use **Apply table** or
-**Apply column** to send typed values to the draft. **Revert unsent edits**
-only resets values not yet applied; it does not undo changes already in the
-draft. Apply or revert pending values before other actions, switching modes or
-saving. Validation errors appear in the view and block **Save**.
+preserved with warnings. Edits are sent to the draft as you type; the editor
+marks pending changes and lets you restore removed rows. **Discard** resets the
+draft to its last saved state. Validation errors appear in the view and block
+**Save**; the save shortcut is Ctrl+S (Cmd+S on macOS).
 
 **Save** explicitly writes the draft: it asks for confirmation, backs up the
 original, refuses a stale file, recomputes `ConfigHash`, writes atomically and
@@ -226,8 +225,8 @@ If a write or readback fails after writing starts, restore the backup before
 continuing. Re-run either database diagram command to reload the file from disk;
 the recovery warning remains visible, and the editor does not retry the write.
 Watcher refresh is deferred while editing or while other pending work blocks it.
-Cancelling confirmation leaves the draft visible while editing, but permits a
-deferred refresh after editing ends.
+Cancelling confirmation preserves the pending draft, including when switching
+back to the diagram.
 The editor never writes `main.iri`: after saving, regenerate it in Revolution
 or use the displayed declarations and constants. Renames, deletions and field
 order changes can break existing code and DB access routines; review both.
