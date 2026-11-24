@@ -22,7 +22,7 @@
  * only validated PNG entries are kept (non-PNG ones are counted in
  * `rejected.nonPng`, oversized ones in `rejected.tooLarge`). Files are written
  * to a temp dir inside `firmware-images/` and swapped in by rename, so a
- * failure leaves previous imports untouched (a re-import of an existing version with fewer usable images keeps the current cache: `keptExisting`, see `importMessage`) and no temp dir behind. Zero
+ * failure leaves previous imports untouched (a re-import of an existing version with fewer usable images in any variant keeps the current cache: `keptExisting`, see `importMessage`) and no temp dir behind. Zero
  * images found is an error (nothing is written).
  */
 import { createHash, randomBytes } from "node:crypto";
@@ -123,7 +123,7 @@ export async function importFirmwareImages(opts: { source: string; storageDir: s
 		const old = join(root, `.old-${randomBytes(6).toString("hex")}`);
 		const hadOld = existsSync(target);
 		const previousCounts = hadOld ? readCounts(join(target, "manifest.json")) : undefined;
-		if (previousCounts && total(counts) < total(previousCounts)) {
+		if (previousCounts && VARIANTS.some((v) => counts[v] < previousCounts[v])) {
 			return { firmwareVersion: version, dir: target, counts, rejected, importedAt, replaced: false, keptExisting: true, previousCounts };
 		}
 		if (hadOld) renameSync(target, old);
@@ -158,11 +158,17 @@ export function importMessage(r: ImportSummary): { level: "info" | "warning"; te
 	if (r.rejected.nonPng) parts.push(`${r.rejected.nonPng} not PNG`);
 	if (r.rejected.tooLarge) parts.push(`${r.rejected.tooLarge} too large`);
 	const rejected = parts.length ? ` (rejected: ${parts.join(", ")})` : "";
-	if (r.keptExisting && r.previousCounts) {
+	if (r.keptExisting) {
+		const prefix = `Firmware images for ${r.firmwareVersion} were not replaced: the new import has`;
+		const prev = r.previousCounts;
+		if (!prev) return { level: "warning", text: `${prefix} fewer usable images than the current cache${rejected}. The current cache was kept.` };
 		const n = total(r.counts);
+		const t = total(prev);
+		const cmp = n < t ? `fewer than the current ${t}` : `no more than the current ${t} but fewer in some variants`;
+		const dropped = VARIANTS.filter((v) => r.counts[v] < prev[v]).map((v) => `${v} (${prev[v]} → ${r.counts[v]})`);
 		return {
 			level: "warning",
-			text: `Firmware images for ${r.firmwareVersion} were not replaced: the new import has ${n} usable ${n === 1 ? "image" : "images"}, fewer than the current ${total(r.previousCounts)}${rejected}. The current cache was kept.`,
+			text: `${prefix} ${n} usable ${n === 1 ? "image" : "images"}, ${cmp}${rejected}. The current cache was kept.${dropped.length ? ` Fewer images for: ${dropped.join(", ")}.` : ""}`,
 		};
 	}
 	return { level: "info", text: `Imported firmware images for ${r.firmwareVersion}${rejected}. Reopen the preview or screen editor to refresh images.` };

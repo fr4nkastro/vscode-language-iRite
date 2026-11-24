@@ -40,12 +40,28 @@ describe("importMessage", () => {
 		}));
 		expect(m).toEqual({
 			level: "warning",
-			text: "Firmware images for 2.09.04 were not replaced: the new import has 4 usable images, fewer than the current 7 (rejected: 2 not PNG, 1 too large). The current cache was kept.",
+			text: "Firmware images for 2.09.04 were not replaced: the new import has 4 usable images, fewer than the current 7 (rejected: 2 not PNG, 1 too large). The current cache was kept. Fewer images for: default (2 → 1), 7 (3 → 2), 12 (2 → 1).",
 		});
 	});
 
 	it("omits the rejected part of the kept warning when nothing was rejected", () => {
 		const m = importMessage(base({ replaced: false, keptExisting: true, previousCounts: { default: 5, "7": 0, "12": 0 }, counts: { default: 1, "7": 0, "12": 0 } }));
-		expect(m.text).toBe("Firmware images for 2.09.04 were not replaced: the new import has 1 usable image, fewer than the current 5. The current cache was kept.");
+		expect(m.text).toBe("Firmware images for 2.09.04 were not replaced: the new import has 1 usable image, fewer than the current 5. The current cache was kept. Fewer images for: default (5 → 1).");
+	});
+
+	it("names the dropped variants when the total is equal", () => {
+		const m = importMessage(base({ replaced: false, keptExisting: true, previousCounts: { default: 0, "7": 100, "12": 0 }, counts: { default: 100, "7": 0, "12": 0 } }));
+		expect(m).toEqual({
+			level: "warning",
+			text: "Firmware images for 2.09.04 were not replaced: the new import has 100 usable images, no more than the current 100 but fewer in some variants. The current cache was kept. Fewer images for: 7 (100 → 0).",
+		});
+	});
+
+	it("warns on keptExisting alone, even without previousCounts", () => {
+		const m = importMessage(base({ replaced: false, keptExisting: true }));
+		expect(m).toEqual({
+			level: "warning",
+			text: "Firmware images for 2.09.04 were not replaced: the new import has fewer usable images than the current cache. The current cache was kept.",
+		});
 	});
 });
