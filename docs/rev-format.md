@@ -312,6 +312,8 @@ The following database observations are from the read-only DOLE `main.rev:1005-1
 - A table uses `DB.SCHEMA#<index>=<maxRecords>,0,<field>,<typeCode>,<size>[,<field>,<typeCode>,<size>...]` and `DB.ALIAS#<index>=<tableName>`. The matching index pairs a schema with its alias; field triples are in the same order as the corresponding iRite database declaration. The meaning and permitted values of the second schema token, observed as `0`, are **UNCONFIRMED**.
 - DOLE writes each `DB.SCHEMA#n` immediately followed by `DB.ALIAS#n`, for indices 1 through 6 in ascending order. Its DB block follows `DIO.ALIAS.8#0` and precedes `EDP.ADDRESS#1` (then `EDP.ALIAS#1`): the observed port key prefix is `EDP.`. The family order from `[IL]` places analog out before database and comm ports after it (section 1), but DOLE has no observed analog-out line at this boundary; the exact analog-out key prefix is **UNCONFIRMED**. Do not infer a prefix or assume every file has either neighboring family.
 
+When inserting the first database block, the editor puts it before the first recognized later-family key (`EDP.`, `STRM.`, `SP.`, `WDGT`, `SKT.`, `SK.OP`, `GFMT`, `NFMT`, `AUXFMT`, or `LC.`). If none is present, it appends to the Config text; unknown keys remain in place. The exact placement of softkey, format and other unrecognized keys relative to the database is **UNCONFIRMED**, so this fallback is a best effort rather than a proven Revolution boundary.
+
 | Code | Observed size(s) | iRite type in DOLE | Example |
 |------|------------------|--------------------|---------|
 | 1 | 1 | Integer | `Trans.TypeWgt` |

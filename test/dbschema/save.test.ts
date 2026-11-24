@@ -90,19 +90,37 @@ describe('database save plan', () => {
    expect(planDbSave(bytes, m)!.bytes.toString()).toContain(`<Config>${expected}</Config>`);
   }
  });
- it('rejects unknown families even when a following widget is present', () => {
+ it('inserts before later families in a realistic CRLF Config and falls back to the end', () => {
+  for (const [body, boundary] of [
+   ['DISPLAY.X#1=x\r\nSC.X#1=x\r\nDIO.X#1=x\r\nEDP.X#1=x\r\nSKT.TEXT#1=x\r\nSK.OP#1=x\r\nGFMT#1=x\r\nNFMT#1=x\r\nLC.X#1=x\r\n', 'EDP.X#1=x'],
+   ['DISPLAY.X#1=x\r\nSKT.TEXT#1=x\r\nSK.OP#1=x\r\nGFMT#1=x\r\nNFMT#1=x\r\nLC.X#1=x\r\n', 'SKT.TEXT#1=x'],
+   ['DISPLAY.X#1=x\r\nSTRM.CUSTOM#1=x\r\n', 'STRM.CUSTOM#1=x'],
+   ['DISPLAY.X#1=x\r\nGFMT.PRN=2\r\n', 'GFMT.PRN=2'],
+   ['DISPLAY.X#1=x\r\nSK.OP#1=x\r\n', 'SK.OP#1=x'],
+   ['DISPLAY.X#1=x\r\nUNKNOWN#1=x\r\n', ''],
+  ]) {
+   const bytes = Buffer.from(`<Indicator><ConfigHash value="x"/><Config>\r\n${body}</Config></Indicator>`);
+   let m = createDbSchema(parseRev(bytes.toString()));
+   m = editDbSchema(m, {kind:'addTable',name:'New',maxRecords:1});
+   m = editDbSchema(m, {kind:'addField',table:1,name:'X',typeCode:3,size:4});
+   const output = planDbSave(bytes, m)!.bytes.toString();
+   expect(output).toContain(`DB.SCHEMA#1=1,0,X,3,4\r\nDB.ALIAS#1=New\r\n${boundary || '</Config>'}`);
+   expect(() => validateDbReadback(Buffer.from(output), m)).not.toThrow();
+  }
+ });
+ it('preserves unknown families before a following widget', () => {
   const bytes = Buffer.from('<Indicator><ConfigHash value="x"/><Config>\nUNKNOWN#1=x\nWDGT#1=4,x\n</Config></Indicator>');
   let m = createDbSchema(parseRev(bytes.toString()));
   m = editDbSchema(m, { kind: 'addTable', name: 'New', maxRecords: 1 });
   m = editDbSchema(m, { kind: 'addField', table: 1, name: 'X', typeCode: 3, size: 4 });
-  expect(() => planDbSave(bytes, m)).toThrow(/boundary/i);
+  expect(planDbSave(bytes, m)!.bytes.toString()).toContain('UNKNOWN#1=x\nDB.SCHEMA#1=1,0,X,3,4\nDB.ALIAS#1=New\nWDGT#1=4,x');
  });
- it('rejects ambiguous or unplaceable inputs', () => {
+ it('appends after unknown families and rejects duplicate DB entries', () => {
   const empty = Buffer.from('<Indicator><ConfigHash value="x"/><Config>\nUNKNOWN#1=x\n</Config></Indicator>');
   let m = createDbSchema(parseRev(empty.toString()));
   m = editDbSchema(m, { kind: 'addTable', name: 'New', maxRecords: 1 });
   m = editDbSchema(m, { kind: 'addField', table: 1, name: 'X', typeCode: 3, size: 4 });
-  expect(() => planDbSave(empty, m)).toThrow();
+  expect(planDbSave(empty, m)!.bytes.toString()).toContain('UNKNOWN#1=x\nDB.SCHEMA#1=1,0,X,3,4\nDB.ALIAS#1=New\n</Config>');
   const duplicate = Buffer.from(original.toString().replace('DB.ALIAS#2=Table_1', 'DB.ALIAS#2=Table_1\r\nDB.ALIAS#2=Table_1'));
   expect(() => planDbSave(duplicate, model())).toThrow();
  });

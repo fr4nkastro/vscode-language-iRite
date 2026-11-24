@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createDbSchema, editDbSchema } from '../../src/dbschema/model';
 import { parseRev } from '../../src/rev';
-import { saveDatabase } from '../../src/dbschema/workflow';
+import { saveDatabase, atomicDbWrite } from '../../src/dbschema/workflow';
 
 const original = Buffer.from('<Indicator><ConfigHash value="x"/><Config>\nDB.SCHEMA#1=10,0,A,3,4\nDB.ALIAS#1=T\nEDP.X#1=x\n</Config></Indicator>');
 const changed = () => editDbSchema(createDbSchema(parseRev(original.toString())), {kind:'updateTable',table:1,name:'New'});
@@ -23,6 +23,22 @@ describe('save workflow', () => {
   expect(await saveDatabase(original, changed(), io)).toBeUndefined();
   expect(await saveDatabase(original, createDbSchema(parseRev(original.toString())), io)).toBeUndefined();
   expect([writes, backups]).toEqual([0,0]);
+ });
+ it('reports only unchanged saves, not cancelled saves', async () => {
+  const notices: string[] = []; let confirms = 0, backups = 0, writes = 0;
+  const io = {read: () => original, confirm: async () => { confirms++; return false; }, backup: () => { backups++; }, write: () => { writes++; }, noChanges: () => notices.push('no changes')};
+  await saveDatabase(original, createDbSchema(parseRev(original.toString())), io);
+  expect(notices).toEqual(['no changes']); expect(confirms).toBe(0);
+  await saveDatabase(original, changed(), io);
+  expect(notices).toEqual(['no changes']); expect(confirms).toBe(1); expect([backups,writes]).toEqual([0,0]);
+ });
+ it('writes a same-directory temporary file before rename after backup and reads back', async () => {
+  let disk: Buffer = Buffer.from(original), temp: Buffer = Buffer.alloc(0); const events: string[] = [];
+  await saveDatabase(original, changed(), {read: () => {events.push('read'); return disk;}, confirm: async () => {events.push('confirm'); return true;}, backup: () => {events.push('backup');}, write: bytes => atomicDbWrite('/project/main.rev', '/project/.main.rev.tmp', bytes, {
+   writeTemp: (p, b) => {events.push(`temp:${p}`); temp = b;}, rename: (a, b) => {events.push(`rename:${a}:${b}`); disk = temp;},
+  })});
+  expect(events).toEqual(['read','confirm','read','backup','read','temp:/project/.main.rev.tmp','rename:/project/.main.rev.tmp:/project/main.rev','read']);
+  expect(disk.toString()).toContain('DB.ALIAS#1=New');
  });
  it('rejects unrelated disk corruption and retains the backup', async () => {
   let disk = Buffer.from(original); let backup: Buffer | undefined; let writes = 0;

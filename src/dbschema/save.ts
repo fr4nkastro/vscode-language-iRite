@@ -86,18 +86,10 @@ export function planDbSave(original: Buffer, intended: DbSchema): DbSavePlan | u
    if (positions.some((p, i) => i > 0 && p !== positions[i - 1] + 1)) throw new Error("Ambiguous database block");
    at = positions[positions.length - 1] + 1;
   } else {
-   // Only classify families whose position and key prefix are evidenced; unknowns
-   // could belong on either side of the new block.
-   let following = false;
-   at = lines.length;
-   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^\r?\n$/.test(line)) continue;
-    const beforeDb = /^(?:SC|DIO)\.[A-Z0-9.]+#\d+=/.test(line);
-    const afterDb = /^(?:EDP|SP)\.[A-Z0-9.]+#\d+=/.test(line) || /^WDGT#\d+=/.test(line);
-    if ((!beforeDb && !afterDb) || (beforeDb && following)) throw new Error("Cannot establish database insertion boundary");
-    if (afterDb && !following) { at = i; following = true; }
-   }
+   // Unknown families are retained in place; use the first recognized later family.
+   const afterDb = /^(?:(?:EDP|SP|SKT|LC|STRM|GFMT|NFMT|AUXFMT)\.[A-Z0-9.]+|SK\.OP|WDGT|GFMT|NFMT|AUXFMT)(?:#\d+)?=/;
+   const first = lines.findIndex(line => afterDb.test(line));
+   at = first < 0 ? lines.length : first;
   }
   const newline = lines[at]?.endsWith("\r\n") || (at > 0 && lines[at - 1].endsWith("\r\n")) ? "\r\n" : "\n";
   const separator = at > 0 && !lines[at - 1].endsWith("\n") ? newline : "";

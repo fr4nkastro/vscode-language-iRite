@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseDbMessage } from '../../src/dbschema/messages';
+import { parseDbMessage, handleDbEdit } from '../../src/dbschema/messages';
 import { renderDbHtml } from '../../src/dbschema/webview';
 import { dbIriHint } from '../../src/dbschema/iriHint';
 import { createDbSchema } from '../../src/dbschema/model';
@@ -11,6 +11,15 @@ describe('database editor interface', () => {
   expect(parseDbMessage({type:'edit',edit:{kind:'updateField',table:1,field:1,changes:{name:'X'}}}, model)).toBeUndefined();
   expect(parseDbMessage({type:'edit',edit:{kind:'deleteField',table:1,field:5}}, model)).toBeUndefined();
   expect(parseDbMessage({type:'edit',edit:{kind:'updateTable',table:1,name:'New'}}, model)).toBeDefined();
+ });
+ it('re-renders rejected input with the model value and a visible message', () => {
+  const rendered: string[] = [], notices: string[] = [];
+  const result = handleDbEdit({type:'edit',edit:{kind:'updateField',table:1,field:1,changes:{name:'X'}}}, model,
+   m => rendered.push(renderDbHtml(m, 'abc', '')), message => notices.push(message));
+  expect(result).toBe(model);
+  expect(rendered).toHaveLength(1);
+  expect(rendered[0]).toContain('value="Mystery"');
+  expect(notices).toEqual(['iRite: Database edit rejected; the original value was restored.']);
  });
  it('renders escaped data with restrictive CSP and unknown types', () => {
   const m = {...model,tables:model.tables.map(t=>({...t,name:'<img src=x onerror=alert(1)>'}))};

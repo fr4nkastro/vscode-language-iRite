@@ -1,6 +1,19 @@
 import { editDbSchema } from './model';
 import type { DbEdit, DbSchema } from './model';
 export type DbMessage = { type: 'save' } | { type: 'edit'; edit: DbEdit };
+
+/** Restore the displayed model and notify the user when an edit is rejected. */
+export function handleDbEdit(raw: unknown, model: DbSchema, render: (model: DbSchema) => void, notify: (message: string) => void): DbSchema {
+ const message = parseDbMessage(raw, model);
+ if (!message || message.type !== 'edit') {
+  render(model);
+  notify('iRite: Database edit rejected; the original value was restored.');
+  return model;
+ }
+ const next = editDbSchema(model, message.edit);
+ render(next);
+ return next;
+}
 /** Check the complete payload and apply the same model invariants as the editor. */
 export function parseDbMessage(raw: unknown, model: DbSchema): DbMessage | undefined {
  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;

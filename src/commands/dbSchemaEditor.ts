@@ -3,11 +3,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { backupPath } from '../editor/backup';
-import { createDbSchema, editDbSchema } from '../dbschema/model';
-import { parseDbMessage } from '../dbschema/messages';
+import { createDbSchema } from '../dbschema/model';
+import { handleDbEdit, parseDbMessage } from '../dbschema/messages';
 import { dbIriHint } from '../dbschema/iriHint';
 import { renderDbHtml } from '../dbschema/webview';
-import { saveDatabase } from '../dbschema/workflow';
+import { atomicDbWrite, saveDatabase } from '../dbschema/workflow';
 import { parseRev } from '../rev';
 import { locateMainSrc } from './locateProject';
 
@@ -28,9 +28,12 @@ export function registerDbSchemaEditor(context: vscode.ExtensionContext): void {
    render();
    panel.webview.onDidReceiveMessage((raw: unknown) => {
     if (saving.has(key) || unusable) return;
+    if (raw && typeof raw === 'object' && (raw as {type?: unknown}).type === 'edit') {
+     model = handleDbEdit(raw, model, next => { model = next; render(); }, message => { void vscode.window.showWarningMessage(message); });
+     return;
+    }
     const msg = parseDbMessage(raw, model);
-    if (!msg) return;
-    if (msg.type === 'edit') { model = editDbSchema(model, msg.edit); render(); return; }
+    if (!msg || msg.type !== 'save') return;
     saving.add(key);
     void (async () => {
      let backup = '';
@@ -40,7 +43,14 @@ export function registerDbSchemaEditor(context: vscode.ExtensionContext): void {
        read: () => fs.readFileSync(target),
        confirm: async () => (await vscode.window.showWarningMessage('Save database schema to .rev?', {modal:true, detail:'A backup is made first and ConfigHash is recomputed. Verify the result in Revolution and on a test indicator. main.iri is never written. Renamed, deleted or reordered fields can break existing code.'}, 'Save and keep a backup')) === 'Save and keep a backup',
        backup: () => { backup = backupPath(target, fs.existsSync, new Date()); fs.copyFileSync(target, backup, fs.constants.COPYFILE_EXCL); },
-       write: next => { wrote = true; fs.writeFileSync(target, next); },
+       noChanges: () => { void vscode.window.showInformationMessage('iRite: No database schema changes to save.'); },
+       write: next => {
+        const temporary = path.join(path.dirname(target), `.${path.basename(target)}.${crypto.randomBytes(16).toString('hex')}.tmp`);
+        atomicDbWrite(target, temporary, next, {
+         writeTemp: (file, data) => fs.writeFileSync(file, data, {flag:'wx', mode: fs.statSync(target).mode}),
+         rename: (from, to) => { wrote = true; fs.renameSync(from, to); },
+        });
+       },
       });
       if (saved) { bytes = fs.readFileSync(target); model = saved; hint = dbIriHint(saved); render(); void vscode.window.showInformationMessage(`iRite: database schema saved. Backup: ${path.basename(backup)}. Regenerate main.iri; see the editor.`); }
      } catch (e) { if (wrote) unusable = true; void vscode.window.showErrorMessage(`iRite: ${e instanceof Error ? e.message : String(e)}${wrote ? ` Backup: ${backup}. Reopen the editor after recovery.` : ''}`); }
