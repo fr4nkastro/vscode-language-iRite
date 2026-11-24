@@ -1,5 +1,16 @@
 import * as vscode from "vscode";
+import { join } from "node:path";
+import { sweepLeftovers } from "../firmware/cacheCleanup";
 import { importFirmwareImages, importMessage } from "../firmware/importer";
+
+/** Best-effort sweep of leftover .old-/.tmp- dirs on activation; never throws, never awaited by activation. */
+export function sweepFirmwareCacheOnActivation(context: vscode.ExtensionContext): void {
+  try {
+    void sweepLeftovers(join(context.globalStorageUri.fsPath, "firmware-images")).catch(() => undefined);
+  } catch {
+    /* best-effort */
+  }
+}
 
 export function registerFirmwareImages(context: vscode.ExtensionContext): void {
   context.subscriptions.push(vscode.commands.registerCommand("irite.firmware.importImages", async () => {

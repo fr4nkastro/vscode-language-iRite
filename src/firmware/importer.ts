@@ -30,6 +30,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writ
 import { basename, dirname, join } from "node:path";
 import { classifyImageEntry, isPng, pngSize, type ImageVariant } from "./imageEntries";
 import { parseManifest, sanitizeVersion } from "./manifest";
+import { removeBestEffort, sweepLeftovers, type RemoveOptions } from "./cacheCleanup";
 import { readTar } from "./tarReader";
 
 export const MAX_IMAGE_BYTES = 16 * 1024 * 1024;
@@ -58,12 +59,22 @@ export interface ImportSummary {
 	keptExisting: boolean;
 	/** Counts of the cache that existed before this import (only when the version already existed). */
 	previousCounts?: VariantCounts;
+	/** Set when the previous cache directory could not be removed after the swap (the import still succeeded). */
+	leftover?: string;
 }
 
 const VARIANTS: ImageVariant[] = ["default", "7", "12"];
 
-export async function importFirmwareImages(opts: { source: string; storageDir: string }): Promise<ImportSummary> {
+export async function importFirmwareImages(opts: {
+	source: string;
+	storageDir: string;
+	/** Removal knobs (injectable rm/sleep for tests). */
+	cleanup?: RemoveOptions;
+	/** Receives cleanup warnings (default console.warn). */
+	logger?: (message: string) => void;
+}): Promise<ImportSummary> {
 	const { source, storageDir } = opts;
+	const log = opts.logger ?? ((m: string) => console.warn(m));
 	const isDir = statSync(source).isDirectory();
 	const tarPath = isDir ? join(source, "rootfs.tar") : source;
 	if (!existsSync(tarPath)) throw new Error(`rootfs.tar not found in "${source}"`);
@@ -78,6 +89,8 @@ export async function importFirmwareImages(opts: { source: string; storageDir: s
 
 	const root = join(storageDir, "firmware-images");
 	mkdirSync(root, { recursive: true });
+	// Sweep before creating this import's temp dir so it can never be swept.
+	for (const f of (await sweepLeftovers(root, opts.cleanup)).failed) log(`Could not remove leftover firmware cache directory ${f.name}: ${f.error}`);
 	const tmp = join(root, `.tmp-${randomBytes(6).toString("hex")}`);
 	mkdirSync(tmp);
 
@@ -133,8 +146,15 @@ export async function importFirmwareImages(opts: { source: string; storageDir: s
 			if (hadOld) renameSync(old, target);
 			throw e;
 		}
-		if (hadOld) rmSync(old, { recursive: true, force: true });
-		return { firmwareVersion: version, dir: target, counts, rejected, importedAt, replaced: true, keptExisting: false, ...(previousCounts ? { previousCounts } : {}) };
+		let leftover: string | undefined;
+		if (hadOld) {
+			const r = await removeBestEffort(old, opts.cleanup);
+			if (!r.removed) {
+				leftover = old;
+				log(`Firmware images for ${version} imported, but the previous cache could not be removed (${r.error}); it will be swept later: ${old}`);
+			}
+		}
+		return { firmwareVersion: version, dir: target, counts, rejected, importedAt, replaced: true, keptExisting: false, ...(previousCounts ? { previousCounts } : {}), ...(leftover ? { leftover } : {}) };
 	} finally {
 		rmSync(tmp, { recursive: true, force: true });
 	}

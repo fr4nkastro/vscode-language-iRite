@@ -222,3 +222,53 @@ describe("importFirmwareImages", () => {
 		});
 	});
 });
+
+describe("importFirmwareImages cleanup (S13)", () => {
+	const err = (code: string) => Object.assign(new Error(code), { code });
+	const reimportSetup = async () => {
+		const src = updateFolder("update", items(), "image_version=2.09.04\n");
+		await importFirmwareImages({ source: src, storageDir: storage() });
+		return src;
+	};
+	it("persistent EBUSY on removing the previous cache still succeeds and logs a warning", async () => {
+		const src = await reimportSetup();
+		let attempts = 0;
+		const warnings: string[] = [];
+		const r = await importFirmwareImages({
+			source: src,
+			storageDir: storage(),
+			cleanup: { rm: (p) => { if (p.includes(".old-")) { attempts++; throw err("EBUSY"); } rmSync(p, { recursive: true, force: true }); }, sleep: async () => {}, attempts: 3 },
+			logger: (m) => warnings.push(m),
+		});
+		expect(r.replaced).toBe(true);
+		expect(attempts).toBe(3);
+		expect(warnings.length).toBe(1);
+		expect(r.leftover).toBeDefined();
+		expect(existsSync(join(storage(), "firmware-images", "2.09.04", "manifest.json"))).toBe(true);
+	});
+	it("EPERM once then success removes the previous cache without a warning", async () => {
+		const src = await reimportSetup();
+		let hits = 0;
+		const warnings: string[] = [];
+		const r = await importFirmwareImages({
+			source: src,
+			storageDir: storage(),
+			cleanup: { rm: (p) => { if (p.includes(".old-") && hits++ === 0) throw err("EPERM"); rmSync(p, { recursive: true, force: true }); }, sleep: async () => {}, attempts: 3 },
+			logger: (m) => warnings.push(m),
+		});
+		expect(r.leftover).toBeUndefined();
+		expect(warnings).toEqual([]);
+		expect(readdirSync(join(storage(), "firmware-images"))).toEqual(["2.09.04"]);
+	});
+	it("sweeps pre-existing .old-/.tmp- leftovers at the start and keeps version dirs", async () => {
+		const root = join(storage(), "firmware-images");
+		mkdirSync(join(root, ".old-x"), { recursive: true });
+		mkdirSync(join(root, ".tmp-y"), { recursive: true });
+		mkdirSync(join(root, "1.0.0"), { recursive: true });
+		writeFileSync(join(root, "1.0.0", "keep.txt"), "k");
+		const src = updateFolder("update", items(), "image_version=2.09.04\n");
+		await importFirmwareImages({ source: src, storageDir: storage() });
+		expect(readdirSync(root).sort()).toEqual(["1.0.0", "2.09.04"]);
+		expect(existsSync(join(root, "1.0.0", "keep.txt"))).toBe(true);
+	});
+});
