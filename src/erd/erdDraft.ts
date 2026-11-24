@@ -51,7 +51,9 @@ export class ErdDraft {
   if (action.kind === 'removeField' || action.kind === 'restoreField') { if (f.added && action.kind==='removeField') t.fields.splice(t.fields.indexOf(f),1); else f.removed=action.kind==='removeField'; return; }
   if (f.removed) throw new Error('Field removed');
   if (action.kind === 'moveField') {
-   const live=t.fields.filter(x=>!x.removed); if (!Number.isInteger(action.to) || action.to<0 || action.to>=live.length) throw new Error('Field not found');
+   const live=t.fields.filter(x=>!x.removed); if (!Number.isInteger(action.to) || action.to<0 || action.to>=live.length) throw new Error('Field index out of range');
+   const fromLive=live.indexOf(f);
+   if (live.slice(Math.min(fromLive,action.to),Math.max(fromLive,action.to)+1).some(row=>!editableFieldType(row.field.typeCode))) throw new Error('Cannot move unknown type code field');
    const target=live[action.to]; if (target!==f) { const from=t.fields.indexOf(f), to=t.fields.indexOf(target); t.fields.splice(from,1); t.fields.splice(to,0,f); } return;
   }
   if (!editableFieldType(f.field.typeCode)) throw new Error('Cannot edit unknown type code field');
@@ -75,7 +77,7 @@ export class ErdDraft {
   const tables=this.rows.map(t=>{
    const surviving=t.fields.filter(f=>!f.removed && !f.added);
    const originalOrder=surviving.map(f=>f.ordinal!).sort((a,b)=>a-b);
-   const fields=t.fields.map(f=>({key:f.key,name:f.name,size:f.size,typeCode:f.field.typeCode,removed:f.removed,added:f.added,reordered:!f.removed && !f.added && originalOrder[surviving.indexOf(f)]!==f.ordinal,dirty:!!f.original && (f.name!==f.original.name || f.size!==String(f.original.size) || f.field.typeCode!==f.original.typeCode)}));
+   const fields=t.fields.map(f=>({key:f.key,name:f.name,size:f.size,typeCode:f.field.typeCode,movable:!!editableFieldType(f.field.typeCode),removed:f.removed,added:f.added,reordered:!f.removed && !f.added && originalOrder[surviving.indexOf(f)]!==f.ordinal,dirty:!!f.original && (f.name!==f.original.name || f.size!==String(f.original.size) || f.field.typeCode!==f.original.typeCode)}));
    let record: number | undefined=0; for (const f of t.fields.filter(f=>!f.removed)) record=sum(record,number(f.size));
    const n=number(t.maxRecords); const total=record!==undefined && Number.isSafeInteger(n) && n>=0 && Number.isSafeInteger(record*n) ? record*n : undefined;
    if (!t.removed) { records=sum(records,n); bytes=total===undefined?undefined:sum(bytes,total); }

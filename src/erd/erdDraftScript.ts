@@ -91,7 +91,7 @@ function live(table) { return draft?.tables.find(t => t.key === table && !t.remo
 function move(table, field, to) {
  if (pending || queue.length || modePending) return;
  const fields = live(table), from = fields.findIndex(f => f.key === field);
- if (from < 0 || to < 0 || to >= fields.length || from === to) return;
+ if (from < 0 || !fields[from].movable || to < 0 || to >= fields.length || from === to) return;
  edit({kind:'moveField', table, field, to});
 }
 editView.addEventListener('click', e => {
@@ -105,7 +105,7 @@ editView.addEventListener('click', e => {
  else if ((d.action === 'removeField' || d.action === 'restoreField') && keyOk(field)) edit({kind:d.action, table, field});
  else if (d.action === 'moveField' && keyOk(field)) { const fields = live(table), from = fields.findIndex(f => f.key === field); move(table, field, from + (d.direction === 'up' ? -1 : 1)); }
 });
-editView.addEventListener('dragstart', e => { const row = e.target.closest('[data-field-row]'); dragging = row && row.draggable ? {table:row.dataset.table, field:row.dataset.field} : null; });
+editView.addEventListener('dragstart', e => { const row = e.target.closest('[data-field-row]'); dragging = row && row.draggable && live(row.dataset.table).some(f => f.key === row.dataset.field && f.movable) ? {table:row.dataset.table, field:row.dataset.field} : null; });
 editView.addEventListener('dragover', e => { if (dragging && e.target.closest('[data-field-row]')) e.preventDefault(); });
 editView.addEventListener('drop', e => {
  const row = e.target.closest('[data-field-row]');

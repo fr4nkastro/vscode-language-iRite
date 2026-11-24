@@ -5,6 +5,24 @@ import { renderErdDraft } from '../../src/erd/erdDraftHtml';
 
 const base = (): DbSchema => ({reservedIndexes:[1], tables:[{index:1,sourceIndex:1,originalName:'Orders',originalMaxRecords:10,originalFieldCount:2,name:'Orders',maxRecords:10,fields:[{name:'Id',typeCode:3,typeName:'integer',size:4,source:{tableIndex:1,fieldIndex:0},originalName:'Id',originalTypeCode:3,originalSize:4},{name:'Text',typeCode:7,typeName:'string',size:20,source:{tableIndex:1,fieldIndex:1},originalName:'Text',originalTypeCode:7,originalSize:20}]}]});
 describe('ErdDraft', () => {
+ it('distinguishes missing fields, out-of-range moves and unknown-type spans without changing order', () => {
+  const model=base(); model.tables[0].fields.splice(1,0,{name:'Mystery',typeCode:99,typeName:'unknown',size:5});
+  const d=new ErdDraft(model), t=d.view().tables[0], [a,u,b]=t.fields;
+  const before=d.project();
+  expect(()=>d.apply({kind:'moveField',table:t.key,field:'draft-999',to:0})).toThrow('Field not found');
+  expect(()=>d.apply({kind:'moveField',table:t.key,field:a.key,to:3})).toThrow('Field index out of range');
+  expect(()=>d.apply({kind:'moveField',table:t.key,field:a.key,to:2})).toThrow('Cannot move unknown type code field');
+  expect(()=>d.apply({kind:'moveField',table:t.key,field:u.key,to:0})).toThrow('Cannot move unknown type code field');
+  expect(d.project()).toEqual(before); expect(d.view().count).toBe(0);
+  expect(b.name).toBe('Text');
+ });
+ it('disables unknown rows in rendered move controls', () => {
+  const model=base(); model.tables[0].fields[0].typeCode=99;
+  const html=renderErdDraft(new ErdDraft(model).view());
+  const row=html.match(/<tr[^>]*data-field="draft-2"[\s\S]*?<\/tr>/)![0];
+  expect(row).toContain('draggable="false"');
+  expect(row.match(/data-action="moveField"[^>]* disabled/g)).toHaveLength(2);
+ });
  it('shows total records without an unsupported global limit', () => {
   const html = renderErdDraft(new ErdDraft(base()).view());
   expect(html).toContain('Total records: 10');

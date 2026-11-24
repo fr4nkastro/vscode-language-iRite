@@ -1,4 +1,5 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
+import { ErdDraft } from '../../src/erd/erdDraft';
 import { ErdEditSession, projectSource } from '../../src/erd/erdEditSession';
 import { createDbSchema } from '../../src/dbschema/model';
 import { parseRev } from '../../src/rev';
@@ -18,6 +19,28 @@ function limitSession(bytes: Buffer) {
  session.editing = true;
  return { session, counts: () => [confirms, backups, writes], disk: () => disk };
 }
+
+it('reuses a protected validated snapshot until the draft changes', async () => {
+ const h=limitSession(original), spy=vi.spyOn(ErdDraft.prototype,'view');
+ try {
+  const view=h.session.view; view.tables[0].name='tampered';
+  expect(h.session.hasChanges).toBe(false); expect(h.session.view.tables[0].name).toBe('T'); expect(spy).toHaveBeenCalledTimes(1);
+  await h.session.request({type:'draft-action',action:{kind:'setTable',table:view.tables[0].key,property:'name',value:'New'}});
+  expect(h.session.hasChanges).toBe(true); expect(h.session.view.tables[0].name).toBe('New'); expect(spy).toHaveBeenCalledTimes(2);
+ } finally { spy.mockRestore(); }
+});
+
+it('reports distinct move failures and keeps the authoritative unknown span guard', async () => {
+ const bytes=Buffer.from('<Indicator><ConfigHash value="x"/><Config>\nDB.SCHEMA#1=10,0,A,3,4,U,99,5,B,3,4\nDB.ALIAS#1=T\n</Config></Indicator>');
+ const h=limitSession(bytes), table=h.session.view.tables[0], [a,u,b]=table.fields, before=h.session.model;
+ const move=async (field:string,to:number) => (await h.session.request({type:'draft-action',action:{kind:'moveField',table:table.key,field,to}})).message;
+ expect(await move('draft-999',0)).toBe('Field not found');
+ expect(await move(a.key,3)).toBe('Field index out of range');
+ expect(await move(a.key,2)).toBe('Cannot move unknown type code field');
+ expect(await move(u.key,0)).toBe('Cannot move unknown type code field');
+ expect(h.session.model).toEqual(before); expect(h.session.hasChanges).toBe(false);
+ expect(h.counts()).toEqual([0,0,0]); expect(h.disk().equals(bytes)).toBe(true); expect(b.name).toBe('B');
+});
 
 it('only resolves links to a trusted project file and returns its stored spelling', () => {
  expect(projectSource(['project/main.iri'], 'project/./MAIN.iri')).toBe('project/main.iri');

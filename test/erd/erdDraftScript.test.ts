@@ -1,36 +1,17 @@
 import { expect, it } from 'vitest';
-import { runInNewContext } from 'node:vm';
-import { renderErdHtml } from '../../src/erd/erdHtml';
-import { ErdDraft } from '../../src/erd/erdDraft';
-import { renderErdDraft, canSaveErdDraft } from '../../src/erd/erdDraftHtml';
+import { harness } from './draftVmHarness';
 import type { DbSchema } from '../../src/dbschema/model';
 
-const schema: DbSchema = {reservedIndexes:[],tables:[{index:1,name:'Orders',maxRecords:10,fields:['A','B','C'].map(name=>({name,typeCode:3,typeName:'integer',size:4}))}]};
-function harness() {
- const listeners: Record<string, Record<string, Function>> = {}, posts: any[] = [], nodes: Record<string, any> = {};
- const doc: any = {activeElement:null, getElementById:(id:string)=>nodes[id]};
- for (const id of ['erd','vp','diagram-view','edit-view','edit-toolbar','diagram-mode','edit-mode','edit-save','edit-revert','edit-count','edit-notice','edit-feedback','readonly-view']) {
-  nodes[id] = {disabled:false, hidden:false, innerHTML:'', textContent:'', setAttribute() {}, addEventListener(type:string, fn:Function) { (listeners[id] ??= {})[type] = fn; }};
+it('ignores unknown rows for drag, move buttons and Alt arrows', () => {
+ const schema: DbSchema={reservedIndexes:[],tables:[{index:1,name:'Orders',maxRecords:10,fields:[{name:'A',typeCode:3,typeName:'integer',size:4},{name:'U',typeCode:99,typeName:'unknown',size:5}]}]};
+ for (const method of ['drag','keyboard','button']) {
+  const h=harness(true,schema); h.ack(); const row=h.row('draft-3');
+  if (method==='drag') { h.listeners['edit-view'].dragstart({target:row}); h.listeners['edit-view'].drop({target:h.row('draft-2'),preventDefault(){}}); }
+  if (method==='keyboard') h.keyboard('ArrowUp',{altKey:true,target:row});
+  if (method==='button') { const button={dataset:{action:'moveField',table:'draft-1',field:'draft-3',direction:'up'},closest(){return this;}}; h.listeners['edit-view'].click({target:button}); }
+  expect(h.posts,method).toHaveLength(1);
  }
- const filter = {dataset:{action:'filterTables'},value:'',tagName:'INPUT'};
- const list = [{textContent:'Orders',parentElement:{hidden:false}},{textContent:'Other',parentElement:{hidden:false}}];
- let focusable: any[] = [];
- nodes['edit-view'].querySelector = (s:string) => s === '[data-detail]' ? {dataset:{table:'draft-1'}} : s.includes('filterTables') ? filter : null;
- nodes['edit-view'].querySelectorAll = (s:string) => s === '[data-action]' ? focusable : s.startsWith('.draft-list') ? list : [];
- nodes['edit-view'].contains = (node:any) => !!node?.dataset;
- const window = {addEventListener(type:string, fn:Function) { (listeners.window ??= {})[type]=fn; }};
- const html = renderErdHtml({tables:[],relations:[],diagnostics:[]},{cspSource:'vscode:',nonce:'abc',title:'x',generation:7,editor:{schema,startEditing:true}});
- runInNewContext(html.match(/<script nonce="abc">([\s\S]*?)<\/script>/)![1],{document:doc,window,acquireVsCodeApi:()=>({postMessage:(m:any)=>posts.push(m)})});
- const draft = new ErdDraft(schema);
- const ack = (opts: {id?:number; generation?:number; canSave?:boolean; fragment?:string; selected?:string; disabled?:boolean} = {}) => {
-  const view=draft.view(); listeners.window.message({data:{type:'erd-edit-state',generation:opts.generation ?? 7,requestId:opts.id ?? posts.at(-1).requestId,draft:view,selected:opts.selected ?? view.tables[0].key,fragment:opts.fragment ?? renderErdDraft(view),count:view.count,canSave:opts.canSave ?? canSaveErdDraft(view),disabled:opts.disabled ?? false}});
- };
- const row = (field:string) => ({dataset:{table:'draft-1',field},draggable:true,closest() {return this;}});
- const keyboard = (key:string, options:any={}) => {let prevented=false; listeners.window.keydown({key,altKey:false,ctrlKey:false,metaKey:false,target:{},preventDefault(){prevented=true;},...options}); return prevented;};
- const change = (node:any) => listeners['edit-view'].input({type:'input',target:node});
- const setFocus = (old:any, replacement:any) => {doc.activeElement=old; focusable=[replacement];};
- return {nodes,listeners,posts,draft,ack,row,keyboard,change,filter,list,setFocus};
-}
+});
 
 it('uses live field indexes for drag and Alt arrows around tombstones', () => {
  const h=harness(), fields=h.draft.view().tables[0].fields; h.draft.apply({kind:'removeField',table:'draft-1',field:fields[1].key}); h.ack();
