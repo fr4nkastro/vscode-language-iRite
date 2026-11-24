@@ -8,6 +8,17 @@ const original = Buffer.from('\ufeff<Indicator>\r\n<ConfigHash value="stale"/>\r
 const model = () => createDbSchema(parseRev(original.toString('utf8')));
 
 describe('database save plan', () => {
+ it('preserves legacy limits on no-op and rejects changed invalid input without changing bytes', () => {
+  const bytes = Buffer.from(original.toString().replace('0010,00,A', '2000001,00,LegacyLong').replace('Table_1', 'LegacyTable'));
+  const legacy = createDbSchema(parseRev(bytes.toString()));
+  const snapshot = Buffer.from(bytes);
+  expect(planDbSave(bytes, legacy)).toBeUndefined();
+  for (const change of [{name:'TooLongName'}, {maxRecords:2000002}]) {
+   const edited = editDbSchema(legacy, {kind:'updateTable',table:2,...change});
+   expect(() => planDbSave(bytes, edited)).toThrow();
+   expect(bytes.equals(snapshot)).toBe(true);
+  }
+ });
  it('preserves LF edited bytes and hashes the CRLF-normalized decoded Config', () => {
   const bytes = Buffer.from(original.toString('utf8').replace(/\r\n/g, '\n'));
   const m = editDbSchema(createDbSchema(parseRev(bytes.toString('utf8'))), { kind: 'updateTable', table: 2, name: 'Renamed' });

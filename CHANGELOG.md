@@ -2,6 +2,8 @@ ChangeLog
 =========
 
 #### Unreleased
+- Database schema edits enforce v308 designer name and count limits and show estimated sizes against its warning threshold; indicator limits and overhead remain unconfirmed.
+- Database diagrams, Mermaid export and schema editing now show Revolution field type names; changing a type applies its designer default size. Numeric codes remain in `.rev`, unknown types stay read-only, and unchanged legacy sizes are preserved. Designer rules do not establish indicator acceptance; validate in Revolution and on a test indicator.
 - Firmware image import now reports rejected image counts (not PNG, too large) and, when re-importing an existing version yields fewer usable images, keeps the current cache and shows a warning.
 - Import 1280 built-in images from a user-supplied firmware update folder or rootfs.tar into global storage. Preview, editor and the type-7 image picker use the selected firmware and panel; reopen views after importing. Type-2 Bitmap retains its style selector. Generated screen SVGs and `rev-cli render --firmware-images <dir>` reference cached images by absolute file URI; firmware images are not shipped or copied into projects.
 - New opt-in **iRite: Edit Database Schema** edits `.rev` database tables and fields with confirmation, backup, stale-file refusal, `ConfigHash` recomputation and readback validation. Shows `main.iri` regeneration hints without writing it; verify changes in Revolution and on a test indicator.

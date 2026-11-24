@@ -103,7 +103,7 @@ class ErdPanel {
      };
      this.session = new ErdEditSession(bytes, createDbSchema(rev), {
       read,
-      confirm: async () => (await vscode.window.showWarningMessage(`Save database schema to ${path.basename(target)}?`, {modal:true, detail:'A backup is made first and ConfigHash is recomputed. Verify the result in Revolution and on a test indicator. main.iri is never written. Renamed, deleted or reordered fields can break existing code.'}, 'Save and keep a backup')) === 'Save and keep a backup',
+      confirm: async () => (await vscode.window.showWarningMessage(`Save database schema to ${path.basename(target)}?`, {modal:true, detail:'A backup is made first and ConfigHash is recomputed. Firmware enforcement, storage overhead and per-table memory limits are unconfirmed. Verify the result in Revolution and on a test indicator. main.iri is never written. Renamed, deleted or reordered fields can break existing code.'}, 'Save and keep a backup')) === 'Save and keep a backup',
       backup: () => { this.backup = backupPath(target, fs.existsSync, new Date()); fs.copyFileSync(target, this.backup, fs.constants.COPYFILE_EXCL); },
       noChanges: () => { void vscode.window.showInformationMessage('iRite: No database schema changes to save.'); },
       write: next => {
