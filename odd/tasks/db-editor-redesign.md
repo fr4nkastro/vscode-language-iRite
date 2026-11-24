@@ -53,6 +53,16 @@ S15 — Visual fidelity at 1280×800 (approved proposal HTML and target image in
 
 S16 — "Keep the hook ids/data attributes the controller and tests use; update tests only where markup legitimately changed, add tests for: only the selected table has the selected class, fixed-size inputs are readonly, byte formatting helper (pure, unit-tested), footer totals." Iterate and inspect PNGs; retain dark, light and high contrast renders. Delivery and final-check constraints from S14 still apply.
 
+S17 — Visual pass review follow-up (decisions verbatim):
+- Name limit: import the 8-char limit from the shared limits module (add it there if missing).
+- One pluralization helper shared by server render and webview script ('1 error', '2 errors', same for warnings); test the initial badge text.
+- Named constant for the default new-field type, reused by both add-field paths.
+- Single issues lookup per property in fieldRow.
+- Enter-to-add: queue the add after pending edits instead of dropping it, and clear focusNewIn on reject or non-render acknowledgement; tests for both.
+- Byte formatter: choose decimals after rounding (99,999,999 B -> 100 MB); boundary tests.
+- Re-render screenshots with the shot scripts in `<visual-scratch>` (dark, light, high contrast, dirty state) into its shots dir.
+- Findings covered: R2-dup-name-limit, R2-error-label-divergence, R2-magic-typecode, R2-redundant-issue-lookup, R3-focus-new-sticky, R3-enter-dropped-when-busy, R3-initial-error-plural, R3-bytes-100mb-decimals.
+
 ## Tasks
 - [x] T1 — S8, S10 — Foreground worker: document the S8 fallback after inconclusive REA inspection — `a34410d`.
 - [x] T4 — S2–S6, S9–S10 — Foreground worker: pure draft, validation locations and estimates — `b81b132`.
@@ -64,6 +74,8 @@ S16 — "Keep the hook ids/data attributes the controller and tests use; update 
 - [x] T7 — S11–S14 — Resolve the approved review's non-blocking findings via bounded foreground workers; independent verification for named risk items; foreground final checks — `0779301`, `4630357`, `42cf916`; evidence in this tracking commit.
 
 - [x] T8 — S15–S16 — Foreground worker: approved visual fidelity, browser captures, and focused tests; foreground final checks — `716ff23`; evidence in this tracking commit.
+
+- [x] T9 — S17, S14 — Foreground worker: resolve the visual pass review findings, re-render captures; foreground final checks — `b3831a6`; evidence in this tracking commit.
 
 ## Log
 L1: Delega a gentle-shell con gpt la mejora de la visualización del editor de db de la extensión
@@ -86,3 +98,5 @@ L17: Foreground final checks on `42cf916`, once each: `npm run typecheck` exit 0
 
 L18: "Visual fidelity pass on the redesigned database schema editor (branch `feat/db-editor-redesign`, this cwd, feature doc `odd/tasks/db-editor-redesign.md`). The behaviour is in place and tested, but the rendered UI does not look like the approved proposal. Make it match the proposal's look and layout while keeping all behaviour, tests and the strict CSP." Visual evidence and render scripts are in `<visual-scratch>`; retain all scratch. Delivery: feature-branch-chain.
 L19: T8 RED 8 failed/1 passed; focused GREEN 21 files/119 passed. CSP-enforced Chromium renders at 1280x800 (dark, light, high contrast, dirty, narrow, diagram) showed no page or CSP errors, one selected row, pinned footer. S15.5 preview skipped (no per-table declaration source); duplicate not shipped (no existing action). Footer counts the global limits-unconfirmed warning. Final checks once: typecheck 0; test 0 (66 files, 670 passed, 7 skipped); compile 0. Renders in `<visual-scratch>/shots`. No native review.
+L20: "Resolve the non-blocking findings from the approved native review of the visual fidelity pass (feature odd/tasks/db-editor-redesign.md, branch feat/db-editor-redesign, this cwd). Add a task and Log entry (keep L1; no absolute local paths) and commit the doc with git add -f." DOLE stays read-only (its current 5-table main.rev is an external change, expected). Delivery: feature-branch-chain; no push, PR, merge, or native review.
+L21: T9 RED 5 failed/5 passed (`test/erd/erdReviewFollowup.test.ts`, stub exports), GREEN 10/10; focused `test/erd` + `test/dbschema` 22 files/129 passed. `MAX_NAME_LENGTH` added to the shared limits; `src/dbschema/model.ts` now builds the same name pattern and message from it (outside the declared edit surfaces, behavior-equivalent). One `plural()` (`src/erd/erdPlural.ts`) embedded in the webview script: badge and footer say "1 error" / "1 warning". `DEFAULT_NEW_FIELD_TYPE` shared by both add-field paths. Enter-to-add queues behind pending edits; focus moves only on a rendered, unrejected ack. Byte decimals chosen after rounding (99,999,999 B -> 100 MB). Known: a double Enter while busy queues two adds. Final checks once: typecheck 0; test 0 (67 files, 680 passed, 7 skipped); compile 0. Renders (dark, light, high contrast, dirty, narrow, diagram) re-generated in `<visual-scratch>/shots`. Risk: none (requested shared-limit change is behavior-equivalent). No native review.
