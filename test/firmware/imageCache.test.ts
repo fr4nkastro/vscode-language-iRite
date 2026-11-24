@@ -56,6 +56,13 @@ describe("imageCache version selection", () => {
 		expect(loadImageCache(tmp, "9.9.9").selected?.version).toBe("2.10.0");
 	});
 
+	it("keeps comparing after numerically equal zero-padded segments (2.09.04 < 2.9.10)", () => {
+		fake("2.09.04", "2026-12-01T00:00:00Z", { "7": [[1, 1, 1]] });
+		fake("2.9.10", "2026-01-01T00:00:00Z", { "7": [[1, 1, 1]] });
+		expect(loadImageCache(tmp).selected?.version).toBe("2.9.10");
+		expect(loadImageCache(tmp, "2.09.04").selected?.version).toBe("2.09.04");
+	});
+
 	it("breaks equal-version ties by importedAt and returns no selection when nothing is imported", () => {
 		expect(loadImageCache(tmp).selected).toBeNull();
 		fake("unknown-aaaaaaaa", "2026-01-01T00:00:00Z", { "7": [[1, 1, 1]] });

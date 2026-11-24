@@ -88,7 +88,11 @@ function compareVersions(a: string, b: string): number {
 		if (x === y) continue;
 		const nx = /^\d+$/.test(x);
 		const ny = /^\d+$/.test(y);
-		if (nx && ny) return parseInt(x, 10) - parseInt(y, 10);
+		if (nx && ny) {
+			const d = parseInt(x, 10) - parseInt(y, 10);
+			if (d !== 0) return d;
+			continue;
+		}
 		return x < y ? -1 : 1;
 	}
 	return 0;
