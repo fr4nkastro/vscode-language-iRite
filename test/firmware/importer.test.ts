@@ -97,11 +97,11 @@ describe("importFirmwareImages", () => {
 		await importFirmwareImages({ source: v1, storageDir: storage() });
 		await importFirmwareImages({ source: v2, storageDir: storage() });
 		// re-import v1 with different content: old files must not linger
-		const v1b = updateFolder("v1b", [{ name: imgPath("12", 7), body: makePng(7, 7) }], "image_version=1.0.0\n");
+		const v1b = updateFolder("v1b", [7, 8, 9].map((n) => ({ name: imgPath("12", n), body: makePng(n, n) })), "image_version=1.0.0\n");
 		const r = await importFirmwareImages({ source: v1b, storageDir: storage() });
 		const fi = join(storage(), "firmware-images");
 		expect(readdirSync(fi).sort()).toEqual(["1.0.0", "2.0.0"]);
-		expect(r.counts).toEqual({ default: 0, "7": 0, "12": 1 });
+		expect(r.counts).toEqual({ default: 0, "7": 0, "12": 3 });
 		expect(existsSync(join(fi, "1.0.0", "7", "1.png"))).toBe(false);
 		expect(existsSync(join(fi, "1.0.0", "12", "7.png"))).toBe(true);
 		expect(existsSync(join(fi, "2.0.0", "7", "5.png"))).toBe(true);
@@ -130,5 +130,69 @@ describe("importFirmwareImages", () => {
 		await expect(importFirmwareImages({ source: dir, storageDir: storage() })).rejects.toThrow(/end-of-archive/i);
 		expect(snap()).toEqual(before);
 		expect(readdirSync(fi)).toEqual(["3.0.0"]);
+	});
+
+	describe("re-import of an existing version", () => {
+		const good = (): TarItem[] => [
+			{ name: imgPath("default", 1), body: makePng(10, 20, 5) },
+			{ name: imgPath("7", 1), body: makePng(10, 20, 6) },
+			{ name: imgPath("12", 2), body: makePng(30, 40) },
+		];
+		const snapshot = (dir: string): Record<string, string> => {
+			const out: Record<string, string> = {};
+			const walk = (d: string, rel: string): void => {
+				for (const n of readdirSync(d)) {
+					const p = join(d, n);
+					if (statSync(p).isDirectory()) walk(p, `${rel}${n}/`);
+					else out[`${rel}${n}`] = readFileSync(p).toString("base64");
+				}
+			};
+			walk(dir, "");
+			return out;
+		};
+
+		it("keeps the current cache untouched when the re-import yields fewer usable images", async () => {
+			const first = updateFolder("a", good(), "image_version=2.0\n");
+			await importFirmwareImages({ source: first, storageDir: storage() });
+			const dir = join(storage(), "firmware-images", "2.0");
+			const before = snapshot(dir);
+			const degraded: TarItem[] = [
+				{ name: imgPath("default", 1), body: makePng(10, 20, 5) },
+				{ name: imgPath("7", 1), body: "not a png" },
+				{ name: imgPath("12", 2), body: "also not a png" },
+			];
+			const second = updateFolder("b", degraded, "image_version=2.0\n");
+			const r = await importFirmwareImages({ source: second, storageDir: storage() });
+			expect(r.replaced).toBe(false);
+			expect(r.keptExisting).toBe(true);
+			expect(r.previousCounts).toEqual({ default: 1, "7": 1, "12": 1 });
+			expect(r.counts).toEqual({ default: 1, "7": 0, "12": 0 });
+			expect(r.rejected).toEqual({ nonPng: 2, tooLarge: 0 });
+			expect(r.dir).toBe(dir);
+			expect(snapshot(dir)).toEqual(before);
+			expect(readdirSync(join(storage(), "firmware-images"))).toEqual(["2.0"]);
+		});
+
+		it("still replaces when the re-import yields an equal or larger number of images", async () => {
+			await importFirmwareImages({ source: updateFolder("a", good(), "image_version=2.0\n"), storageDir: storage() });
+			const same = good();
+			same[0] = { name: imgPath("default", 1), body: makePng(11, 21) };
+			const r = await importFirmwareImages({ source: updateFolder("b", same, "image_version=2.0\n"), storageDir: storage() });
+			expect(r.replaced).toBe(true);
+			expect(r.keptExisting).toBe(false);
+			const dir = join(storage(), "firmware-images", "2.0");
+			expect(readFileSync(join(dir, "default", "1.png")).equals(makePng(11, 21))).toBe(true);
+			const more = [...good(), { name: imgPath("12", 3), body: makePng(2, 2) }];
+			const r2 = await importFirmwareImages({ source: updateFolder("c", more, "image_version=2.0\n"), storageDir: storage() });
+			expect(r2.replaced).toBe(true);
+			expect(existsSync(join(dir, "12", "3.png"))).toBe(true);
+		});
+
+		it("a new version is reported as replaced without previous counts", async () => {
+			const r = await importFirmwareImages({ source: updateFolder("a", good(), "image_version=9.9\n"), storageDir: storage() });
+			expect(r.replaced).toBe(true);
+			expect(r.keptExisting).toBe(false);
+			expect(r.previousCounts).toBeUndefined();
+		});
 	});
 });

@@ -22,7 +22,7 @@
  * only validated PNG entries are kept (non-PNG ones are counted in
  * `rejected.nonPng`, oversized ones in `rejected.tooLarge`). Files are written
  * to a temp dir inside `firmware-images/` and swapped in by rename, so a
- * failure leaves previous imports untouched and no temp dir behind. Zero
+ * failure leaves previous imports untouched (a re-import of an existing version with fewer usable images keeps the current cache: `keptExisting`, see `importMessage`) and no temp dir behind. Zero
  * images found is an error (nothing is written).
  */
 import { createHash, randomBytes } from "node:crypto";
@@ -53,6 +53,11 @@ export interface ImportSummary {
 	counts: VariantCounts;
 	rejected: { nonPng: number; tooLarge: number };
 	importedAt: string;
+	/** false when a re-import yielded fewer usable images than the current cache and the cache was kept. */
+	replaced: boolean;
+	keptExisting: boolean;
+	/** Counts of the cache that existed before this import (only when the version already existed). */
+	previousCounts?: VariantCounts;
 }
 
 const VARIANTS: ImageVariant[] = ["default", "7", "12"];
@@ -117,6 +122,10 @@ export async function importFirmwareImages(opts: { source: string; storageDir: s
 		const target = join(root, version);
 		const old = join(root, `.old-${randomBytes(6).toString("hex")}`);
 		const hadOld = existsSync(target);
+		const previousCounts = hadOld ? readCounts(join(target, "manifest.json")) : undefined;
+		if (previousCounts && total(counts) < total(previousCounts)) {
+			return { firmwareVersion: version, dir: target, counts, rejected, importedAt, replaced: false, keptExisting: true, previousCounts };
+		}
 		if (hadOld) renameSync(target, old);
 		try {
 			renameSync(tmp, target);
@@ -125,8 +134,36 @@ export async function importFirmwareImages(opts: { source: string; storageDir: s
 			throw e;
 		}
 		if (hadOld) rmSync(old, { recursive: true, force: true });
-		return { firmwareVersion: version, dir: target, counts, rejected, importedAt };
+		return { firmwareVersion: version, dir: target, counts, rejected, importedAt, replaced: true, keptExisting: false, ...(previousCounts ? { previousCounts } : {}) };
 	} finally {
 		rmSync(tmp, { recursive: true, force: true });
 	}
+}
+
+const total = (c: VariantCounts): number => VARIANTS.reduce((n, v) => n + c[v], 0);
+
+function readCounts(manifestPath: string): VariantCounts | undefined {
+	try {
+		const c = JSON.parse(readFileSync(manifestPath, "utf8")).counts;
+		if (VARIANTS.every((v) => Number.isInteger(c?.[v]) && c[v] >= 0)) return { default: c.default, "7": c["7"], "12": c["12"] };
+	} catch {
+		/* unreadable manifest: treat as no usable previous cache */
+	}
+	return undefined;
+}
+
+/** Notification for an import result (vscode-free): info, or warning when the current cache was kept. */
+export function importMessage(r: ImportSummary): { level: "info" | "warning"; text: string } {
+	const parts: string[] = [];
+	if (r.rejected.nonPng) parts.push(`${r.rejected.nonPng} not PNG`);
+	if (r.rejected.tooLarge) parts.push(`${r.rejected.tooLarge} too large`);
+	const rejected = parts.length ? ` (rejected: ${parts.join(", ")})` : "";
+	if (r.keptExisting && r.previousCounts) {
+		const n = total(r.counts);
+		return {
+			level: "warning",
+			text: `Firmware images for ${r.firmwareVersion} were not replaced: the new import has ${n} usable ${n === 1 ? "image" : "images"}, fewer than the current ${total(r.previousCounts)}${rejected}. The current cache was kept.`,
+		};
+	}
+	return { level: "info", text: `Imported firmware images for ${r.firmwareVersion}${rejected}. Reopen the preview or screen editor to refresh images.` };
 }

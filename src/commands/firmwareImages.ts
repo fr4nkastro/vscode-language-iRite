@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { importFirmwareImages } from "../firmware/importer";
+import { importFirmwareImages, importMessage } from "../firmware/importer";
 
 export function registerFirmwareImages(context: vscode.ExtensionContext): void {
   context.subscriptions.push(vscode.commands.registerCommand("irite.firmware.importImages", async () => {
@@ -22,7 +22,8 @@ export function registerFirmwareImages(context: vscode.ExtensionContext): void {
         location: vscode.ProgressLocation.Notification,
         title: "Importing 1280 built-in images from firmware",
       }, () => importFirmwareImages({ source: selected[0].fsPath, storageDir: context.globalStorageUri.fsPath }));
-      void vscode.window.showInformationMessage(`Imported firmware images for ${result.firmwareVersion}. Reopen the preview or screen editor to refresh images.`);
+      const msg = importMessage(result);
+      void (msg.level === "warning" ? vscode.window.showWarningMessage(msg.text) : vscode.window.showInformationMessage(msg.text));
     } catch (error) {
       void vscode.window.showErrorMessage(`Could not import firmware images: ${error instanceof Error ? error.message : String(error)}`);
     }

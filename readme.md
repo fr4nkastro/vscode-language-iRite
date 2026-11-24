@@ -113,6 +113,7 @@ Run **iRite: Import 1280 Built-in Images from Firmware** and select a firmware
 `update` folder or its `rootfs.tar`. Images are Rice Lake property and are not
 shipped with this extension. They are cached in VS Code extension global storage
 under `firmware-images/<firmwareVersion>/{default,7,12}/`, with a manifest.
+The notification lists rejected images (not PNG / too large); a re-import of an existing version with fewer usable images keeps the current cache and warns.
 Multiple versions coexist; `irite.firmware.imagesVersion` selects one (otherwise
 the latest imported version). Reopen Preview Screens and the screen editor after
 import. The image widget (type 7) picker includes numbered built-ins and
