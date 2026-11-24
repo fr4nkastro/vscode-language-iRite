@@ -7,6 +7,7 @@ import { registerSfcCommands } from "./commands/sfc";
 import { registerCallMapCommands } from "./commands/callMap";
 import { registerDocsCommands } from "./commands/docs";
 import { registerDbAccess } from "./commands/dbAccess";
+import { registerRegenerateIri } from "./commands/regenerateIri";
 import { registerFirmwareImages, sweepFirmwareCacheOnActivation } from "./commands/firmwareImages";
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -22,6 +23,7 @@ export function activate(context: vscode.ExtensionContext): void {
   registerCallMapCommands(context);
   registerDocsCommands(context);
   registerDbAccess(context);
+  registerRegenerateIri(context);
   registerFirmwareImages(context);
   sweepFirmwareCacheOnActivation(context);
 }

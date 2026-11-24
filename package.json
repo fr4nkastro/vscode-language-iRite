@@ -97,6 +97,11 @@
 					"when": "resourceExtname =~ /\\.rev$/i",
 					"command": "irite.editScreens",
 					"group": "navigation"
+				},
+				{
+					"when": "resourceExtname =~ /\\.rev$/i",
+					"command": "irite.regenerateIri",
+					"group": "navigation"
 				}
 			],
 			"explorer/context": [
@@ -108,6 +113,11 @@
 				{
 					"when": "resourceExtname =~ /\\.rev$/i",
 					"command": "irite.editScreens",
+					"group": "navigation"
+				},
+				{
+					"when": "resourceExtname =~ /\\.rev$/i",
+					"command": "irite.regenerateIri",
 					"group": "navigation"
 				}
 			]
@@ -150,6 +160,11 @@
 				"command": "irite.editScreens",
 				"title": "iRite: Edit Screens",
 				"description": "Opt-in editor for the 1280 screens: move and resize widgets and save x/y/width/height back into the .rev (a backup is written first)"
+			},
+			{
+				"command": "irite.regenerateIri",
+				"title": "iRite: Regenerate main.iri from .rev",
+				"description": "Regenerate main.iri from the project's .rev (a backup of the previous main.iri is kept)"
 			},
 			{
 				"command": "irite.editDatabaseSchema",

@@ -107,7 +107,7 @@ describe("editor page: palette, inspector, hint", () => {
 		const out = renderEditorHtml(view, { ...opts, hint: { add: ["a<b>     : constant integer := 1;"], change: [{ old: "x         : constant integer := 2;", new: "y         : constant integer := 2;" }], remove: [] } });
 		expect(out).toContain("+ a&lt;b&gt;");
 		expect(out).toContain("- x         : constant integer := 2;");
-		expect(out).toContain("never edited by this extension");
+		expect(out).toContain("never edited while you edit");
 		expect(html).not.toContain('id="irihint"');
 	});
 	it("escapes image names and keeps a hostile selection or image list out of the script", () => {

@@ -2,6 +2,7 @@ ChangeLog
 =========
 
 #### Unreleased
+- New **iRite: Regenerate main.iri from .rev** (explorer menu on `.rev`, and a button after saving in the screen and database schema editors) regenerates `main.iri` the way Revolution does, byte-identical on the DOLE sample, keeping a backup of the previous file (never overwritten); an identical file is left untouched. Not verified against Revolution v310.
 - Database schema edits enforce v308 designer name and count limits and show estimated sizes against its warning threshold; indicator limits and overhead remain unconfirmed.
 - Database diagrams, Mermaid export and schema editing now show Revolution field type names; changing a type applies its designer default size. Numeric codes remain in `.rev`, unknown types stay read-only, and unchanged legacy sizes are preserved. Designer rules do not establish indicator acceptance; validate in Revolution and on a test indicator.
 - Firmware image import now reports rejected image counts (not PNG, too large) and, when re-importing an existing version yields fewer usable images, keeps the current cache and shows a warning.

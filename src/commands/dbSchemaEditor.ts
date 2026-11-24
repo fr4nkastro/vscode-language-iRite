@@ -10,6 +10,7 @@ import { renderDbHtml } from '../dbschema/webview';
 import { atomicDbWrite, saveDatabase } from '../dbschema/workflow';
 import { parseRev } from '../rev';
 import { locateMainSrc } from './locateProject';
+import { offerRegenerate } from './regenerateIri';
 
 const saving = new Set<string>();
 export function registerDbSchemaEditor(context: vscode.ExtensionContext): void {
@@ -41,7 +42,7 @@ export function registerDbSchemaEditor(context: vscode.ExtensionContext): void {
      try {
       const saved = await saveDatabase(bytes, model, {
        read: () => fs.readFileSync(target),
-       confirm: async () => (await vscode.window.showWarningMessage('Save database schema to .rev?', {modal:true, detail:'A backup is made first and ConfigHash is recomputed. Verify the result in Revolution and on a test indicator. main.iri is never written. Renamed, deleted or reordered fields can break existing code.'}, 'Save and keep a backup')) === 'Save and keep a backup',
+       confirm: async () => (await vscode.window.showWarningMessage('Save database schema to .rev?', {modal:true, detail:'A backup is made first and ConfigHash is recomputed. Verify the result in Revolution and on a test indicator. main.iri is not written by saving: use "iRite: Regenerate main.iri from .rev" afterwards (a backup of main.iri is kept). Renamed, deleted or reordered fields can break existing code.'}, 'Save and keep a backup')) === 'Save and keep a backup',
        backup: () => { backup = backupPath(target, fs.existsSync, new Date()); fs.copyFileSync(target, backup, fs.constants.COPYFILE_EXCL); },
        noChanges: () => { void vscode.window.showInformationMessage('iRite: No database schema changes to save.'); },
        write: next => {
@@ -52,7 +53,7 @@ export function registerDbSchemaEditor(context: vscode.ExtensionContext): void {
         });
        },
       });
-      if (saved) { bytes = fs.readFileSync(target); model = saved; hint = dbIriHint(saved); render(); void vscode.window.showInformationMessage(`iRite: database schema saved. Backup: ${path.basename(backup)}. Regenerate main.iri; see the editor.`); }
+      if (saved) { bytes = fs.readFileSync(target); model = saved; hint = dbIriHint(saved); render(); offerRegenerate(`iRite: database schema saved. Backup: ${path.basename(backup)}. main.iri is not regenerated yet.`, target); }
      } catch (e) { if (wrote) unusable = true; void vscode.window.showErrorMessage(`iRite: ${e instanceof Error ? e.message : String(e)}${wrote ? ` Backup: ${backup}. Reopen the editor after recovery.` : ''}`); }
      finally { saving.delete(key); }
     })();

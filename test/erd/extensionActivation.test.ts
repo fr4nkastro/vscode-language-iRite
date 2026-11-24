@@ -34,7 +34,7 @@ afterEach(() => { state.disposePanel(); });
 
 it('activates without duplicate commands and routes schema editing to the ERD in edit mode', async () => {
  activate({subscriptions: []} as any);
- expect([...state.handlers.keys()]).toEqual(['irite.showErd', 'irite.editDatabaseSchema']);
+ expect([...state.handlers.keys()]).toEqual(['irite.showErd', 'irite.editDatabaseSchema', 'irite.regenerateIri']);
  await state.handlers.get('irite.editDatabaseSchema')!();
  expect(state.panels).toEqual(['irite.showErd']);
  expect(state.render).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({editor: expect.objectContaining({startEditing: true})}));

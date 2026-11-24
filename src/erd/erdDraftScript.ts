@@ -62,7 +62,7 @@ function accept(m, render, focusTable) {
  hardDisabled = !!m.disabled;
  if (typeof m.readonly === 'string') readonlyView.innerHTML = m.readonly;
  if (typeof m.message === 'string') notice.textContent = m.message; else notice.textContent = '';
- feedback.textContent = typeof m.hint === 'string' ? 'main.iri hint (regenerate in Revolution):\\n' + m.hint : '';
+ feedback.textContent = typeof m.hint === 'string' ? 'main.iri hint (run "iRite: Regenerate main.iri from .rev" after saving):\\n' + m.hint : '';
  if (render && typeof m.fragment === 'string') {
   const focus = captureFocus();
   selected = keyOk(m.selected) ? m.selected : undefined;
