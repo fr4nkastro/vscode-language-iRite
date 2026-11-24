@@ -13,6 +13,11 @@ Opt-in `.rev` write-back on `feat/db-schema-editor` from `335b9eb`. Local commit
 - S7 CRLF: real `.rev` files are CRLF. Known issue: the `.rev` and DB parsers currently fail on CRLF inputs (14 failing tests in rev.test.ts / dbaccess.test.ts on Windows checkouts). Fix the parsing so CRLF and LF both work, and add CRLF fixtures and a CRLF round-trip test for the schema editor.
 - S8 Docs: update AGENTS.md (Project Shape + the "only reads .rev" statements), readme.md feature list, CHANGELOG.md (Unreleased), package.json contributes (command + activation if needed).
 
+- S9 (R3-first-table-boundary): placing the first DB block must work on real files. Use the Config family order documented in docs/rev-format.md (database after analog out, before comm ports) and insert before the first line of any family that comes after database, falling back to a documented rule; add a test with a realistic Config (DISPLAY, SKT, SK.OP, GFMT, NFMT, LC, etc., CRLF). If the exact boundary is UNCONFIRMED for some families, say so in docs/rev-format.md.
+- S10 (R3-silent-rejected-edit): a rejected edit must re-render the webview with the model value and show a visible message; add a test.
+- S11 (R3-no-feedback-noop-save): a save with no changes shows an informational message instead of silence.
+- S12 (R1-001): write the .rev atomically (temp file in the same directory, then rename), keeping backup-first and the readback post-check; test the pure part.
+
 ## Tasks
 
 - [x] T1 — S7, except schema editor round-trip: parser and fixtures. Route: worker. Commit: `3ab8c78`.
@@ -21,6 +26,8 @@ Opt-in `.rev` write-back on `feat/db-schema-editor` from `335b9eb`. Local commit
 - [x] T4 — S2, S5, S7: lossless serializer, save plan and round-trip checks. Route: worker + independent verifier. Commit: `c0b9d26`.
 - [x] T5 — S5–S6, S8: webview, command, generated hints and docs. Route: worker + independent verifier. Commits: `81538d8`, `0a0dd45`. Live VS Code interaction not exercised.
 - [ ] T6 — S1–S8: foreground checks and targeted independent verification passed; native review blocked on candidate-specific consent. Route: worker and verifier. Commit: this ODD evidence commit.
+
+- [x] T7 — S9–S12: resolve the four non-blocking native review findings. Route: foreground worker + independent verifier. Risk: item 1 (persisted indicator configuration). Commit: `971ba5d`.
 
 ## Log
 
@@ -33,3 +40,6 @@ Opt-in `.rev` write-back on `feat/db-schema-editor` from `335b9eb`. Local commit
 - L7: T5 initial focused GREEN 7 tests and typecheck; independent probes found first-table insertion without EDP and exact readback gaps. Regression RED 2 failures, GREEN 15 tests and typecheck. Scratch retained: `/tmp/gpzbAa3r/gahkYK32/tmp.scKyQK8z74`.
 - L8: Final foreground checks on `0a0dd45`: typecheck exit 0; test exit 0 (40 files, 497 passed, 7 skipped because optional DOLE golden copies were missing); compile exit 0. Independent recheck: 11/11 targeted assertions, including actual scratch-file corruption detection and byte-identical backup retention. Retained scratch: `/tmp/gpzbAa3r/gaHgwsLn/tmp.g810PzTkOj`.
 - L9: Native review inspect rejected the abbreviated base ref; the full ref resolved and START returned candidate-scoped consent required for `81538d8..0a0dd45`. No consent was submitted, no lineage created, and no reviewers ran. No live VS Code interaction, Revolution import or test 1280 validation was performed.
+- L10 (user, Goal verbatim): Resolve the four non-blocking findings from the approved native review of feature odd/tasks/db-schema-editor.md (branch feat/db-schema-editor, this cwd). Add a T7 task and a Log entry to the feature doc (keep L1 unchanged) and commit it with git add -f.
+- L10 constraints: TDD (RED then GREEN), staged checks (focused while iterating; npm run typecheck, npm test, npm run compile once at the end via a foreground gentle-ai-worker), Conventional Commits with git -c user.name="Allan Castro" -c user.email=it@ipesah.com, no co-author lines, no push/PR/merge, do not touch other branches, do not delete scratch (list paths), finish everything in the foreground. Do not start a native review; Claude handles it.
+- L11: T7 focused RED exited 1 (6 failed, 16 passed); GREEN exited 0 (22 passed). Independent verification passed S9–S12 (22 focused tests plus 3 isolated probes). Final foreground checks on the T7 source candidate: typecheck exit 0; test exit 0 (40 files, 501 passed, 7 skipped); compile exit 0. Scratch retained: `/tmp/gpdk1azq/gahNwEAz/tmp.dZmAVu7Fr6`. No native review was started. Live VS Code, Revolution and test 1280 validation were not performed.
