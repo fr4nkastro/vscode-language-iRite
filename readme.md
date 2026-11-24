@@ -199,17 +199,29 @@ in the same way; regenerate it after importing.
 
 ### Database schema editor (opt-in)
 
-Run **iRite: Edit Database Schema** for the project containing `main.src` and
-`main.rev`. Add, rename, delete or reorder tables and fields, edit type codes,
-sizes and record limits, then explicitly save. Every save requires confirmation,
-backs up the original, refuses a stale file, recomputes `ConfigHash` and checks
-the written schema. Unknown type codes are preserved and cannot be edited.
-Limits and type/size combinations remain unconfirmed; verify the resulting file
-in Revolution and on a test indicator before production.
+Run **iRite: Show Database Diagram** for a project containing `main.src`.
+The diagram opens read-only with **Edit schema** off; enable it to edit the
+project's `.rev` database schema in the diagram. **iRite: Edit Database Schema**
+opens the same ERD in edit mode. Without a `.rev`, the diagram remains available,
+but schema editing is disabled with a message.
 
-The editor never writes `main.iri`: after saving, regenerate it in Revolution or
-use the displayed declarations and constants. Renames, deletions and field order
-changes can break existing code and DB access routines; review both carefully.
+Add, rename or delete tables; edit record limits; and add, rename, delete or
+reorder columns and edit their type and size. Unknown type codes are preserved
+as raw values and their columns cannot be edited. Use **Apply table** or
+**Apply column** to send typed values to the draft. **Revert unsent edits**
+only resets values not yet applied; it does not undo changes already in the
+draft. Apply or revert pending values before other actions, switching modes or
+saving. Validation errors appear in the view and block **Save**.
+
+**Save** explicitly writes the draft: it asks for confirmation, backs up the
+original, refuses a stale file, recomputes `ConfigHash`, writes atomically and
+checks the schema by reading it back. Saving with no changes reports that fact.
+The editor never writes `main.iri`: after saving, regenerate it in Revolution
+or use the displayed declarations and constants. Renames, deletions and field
+order changes can break existing code and DB access routines; review both.
+Limits and type/size combinations remain unconfirmed. Opening an edited file in
+Revolution and loading it on an indicator remain unverified; check both before
+production and keep the backup.
 
 ### Database diagram (ERD)
 
@@ -276,8 +288,9 @@ The automatic layout can be refined by hand; the sources are never touched.
     shows the automatic layout, says so in the side panel and does not
     overwrite the file.
 
-The ERD is read-only. Both diagrams refresh when the
-sources or `.rev` change.
+The ERD is read-only until schema editing is enabled; the SFC layout editor
+never writes the sources or `.rev`. Both diagrams refresh when the sources or
+`.rev` change.
 
 ### Call map (modules and routines)
 
