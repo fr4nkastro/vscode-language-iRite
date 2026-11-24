@@ -7,6 +7,7 @@ export interface ErdHtmlOptions {
 	cspSource: string;
 	nonce: string;
 	title: string;
+	generation?: number;
 	editor?: { schema: DbSchema; startEditing?: boolean; hint?: string; message?: string };
 }
 
@@ -117,7 +118,8 @@ svg.addEventListener('click', (e) => {
 const toggle = document.getElementById('edit-toggle');
 const readonlyView = document.getElementById('readonly-view'), editView = document.getElementById('edit-view');
 const feedback = document.getElementById('edit-feedback'), save = document.getElementById('edit-save');
-let pending = null, nextRequest = 0, focusSelector = null;
+const generation = __ERD_GENERATION__;
+let pending = null, modePending = false, aliasPending = false, nextRequest = 0, focusSelector = null;
 const dirty = new Set();
 const notice = text => { document.getElementById('edit-notice').textContent = text; };
 const numberValue = input => input.value.trim() === '' ? null : Number(input.value);
@@ -128,11 +130,12 @@ document.getElementById('edit-revert').addEventListener('click', () => {
 });
 function mode() { readonlyView.style.display = toggle.checked ? 'none' : ''; editView.style.display = toggle.checked ? '' : 'none'; document.getElementById('edit-toolbar').style.display = toggle.checked ? '' : 'none'; }
 mode();
-toggle.addEventListener('change', () => { if (pending || dirty.size) { toggle.checked = !toggle.checked; notice('Apply or revert pending values first.'); return; } mode(); });
+function requestMode(editing) { modePending = true; toggle.disabled = true; toggle.checked = !editing; vscode.postMessage({ type: 'erd-edit-mode', generation, editing }); }
+toggle.addEventListener('change', () => { if (pending || modePending || dirty.size) { toggle.checked = !toggle.checked; notice('Apply or revert pending values first.'); return; } requestMode(toggle.checked); });
 editView.addEventListener('input', e => { if (e.target.matches('input,select')) { if (e.target.value === e.target.defaultValue || (e.target.tagName === 'SELECT' && e.target.value === e.target.querySelector('option[selected]')?.value)) dirty.delete(e.target); else dirty.add(e.target); } });
 editView.addEventListener('change', e => { if (e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', { bubbles: true })); });
 function send(message) {
- if (pending) return;
+ if (pending || modePending) return;
  pending = ++nextRequest;
  const active = document.activeElement;
  const t = active && active.closest ? active.closest('[data-table]') : null;
@@ -140,7 +143,7 @@ function send(message) {
  const action = active && active.dataset ? active.dataset.action : null;
  focusSelector = t && action && /^\\d+$/.test(t.dataset.table) && /^[A-Za-z]+$/.test(action) ? '[data-table="' + t.dataset.table + '"] ' + (f && /^\\d+$/.test(f.dataset.field) && !['deleteField','moveUp','moveDown'].includes(action) ? '[data-field="' + f.dataset.field + '"] ' : '') + '[data-action="' + (['deleteField','moveUp','moveDown'].includes(action) ? 'addField' : action) + '"]' : null;
  document.querySelectorAll('#edit-view input, #edit-view select, #edit-view button, #edit-toolbar button, #edit-toggle').forEach(e => e.disabled = true);
- vscode.postMessage({ type: 'erd-edit-request', requestId: pending, message });
+ vscode.postMessage({ type: 'erd-edit-request', generation, requestId: pending, message });
 }
 editView.addEventListener('click', e => {
  const button = e.target.closest('button[data-action]'); if (!button || pending) return;
@@ -162,15 +165,19 @@ document.getElementById('add-table').addEventListener('click', () => { if (dirty
 save.addEventListener('click', () => { if (dirty.size) { notice('Apply or revert pending values first.'); return; } send({ type: 'save' }); });
 window.addEventListener('message', e => {
  const m = e.data;
- if (!m || m.type !== 'erd-edit-state' || !pending || m.requestId !== pending) return;
- editView.innerHTML = m.diagram; feedback.innerHTML = m.feedback; dirty.clear(); pending = null;
- toggle.disabled = false; document.getElementById('add-table').disabled = false; document.getElementById('edit-revert').disabled = false; save.disabled = !m.canSave;
+ if (!m || m.generation !== generation) return;
+ if (m.type === 'erd-enable-edit') { if (modePending || pending) aliasPending = true; else if (!toggle.disabled) requestMode(true); return; }
+ if (m.type === 'erd-edit-mode-state' && modePending) { modePending = false; toggle.disabled = false; toggle.checked = m.editing; mode(); if (aliasPending) { aliasPending = false; requestMode(true); } return; }
+ if (m.type !== 'erd-edit-state' || !pending || m.requestId !== pending) return;
+ editView.innerHTML = m.diagram; feedback.innerHTML = m.feedback; if (typeof m.readonly === 'string') readonlyView.innerHTML = m.readonly; dirty.clear(); pending = null;
+ toggle.disabled = !!m.disabled; document.getElementById('add-table').disabled = !!m.disabled; document.getElementById('edit-revert').disabled = !!m.disabled; save.disabled = !m.canSave || !!m.disabled;
  if (focusSelector) { const target = editView.querySelector(focusSelector); if (target && !target.disabled) target.focus(); }
  focusSelector = null; notice('');
+ if (aliasPending && !m.disabled) { aliasPending = false; requestMode(true); }
 });
 `;
 
-export function renderErdHtml(erd: Erd, opts: ErdHtmlOptions): string {
+export function renderErdReadonly(erd: Erd): string {
 	const boxes = layout(erd.tables);
 	const edges = erd.relations
 		.map((r) => {
@@ -187,6 +194,11 @@ export function renderErdHtml(erd: Erd, opts: ErdHtmlOptions): string {
 		})
 		.join("");
 	const cards = [...boxes.values()].map(card).join("");
+	return edges + cards;
+}
+
+export function renderErdHtml(erd: Erd, opts: ErdHtmlOptions): string {
+	const readonly = renderErdReadonly(erd);
 	const diags = erd.diagnostics.length
 		? `<h2>Diagnostics</h2><ul>${erd.diagnostics.map((d) => `<li class="${d.severity}">${esc(d.message)}</li>`).join("")}</ul>`
 		: "";
@@ -209,8 +221,8 @@ svg{width:100%;height:78vh;cursor:grab;display:block}
 </style></head><body>
 <h1>${esc(opts.title)}</h1><label><input id="edit-toggle" type="checkbox" ${editor ? '' : 'disabled'} ${editing && editor ? 'checked' : ''}>Edit schema</label>${editor ? '' : '<span>No .rev available; schema editing is disabled.</span>'}
 <div id="edit-toolbar" data-editing="${editing && !!editor}" style="display:${editing && editor ? '' : 'none'}"><button id="add-table">Add table</button><button id="edit-revert">Revert unsent edits</button><button id="edit-save" ${editor?.canSave ? '' : 'disabled'}>Save</button><span id="edit-notice" role="status"></span></div>${empty}
-<svg id="erd" xmlns="http://www.w3.org/2000/svg"><g id="vp"><g id="readonly-view" style="display:${editing && editor ? 'none' : ''}">${edges}${cards}</g><g id="edit-view" style="display:${editing && editor ? '' : 'none'}">${editor?.diagram ?? ''}</g></g></svg>
+<svg id="erd" xmlns="http://www.w3.org/2000/svg"><g id="vp"><g id="readonly-view" style="display:${editing && editor ? 'none' : ''}">${readonly}</g><g id="edit-view" style="display:${editing && editor ? '' : 'none'}">${editor?.diagram ?? ''}</g></g></svg>
 <div id="edit-feedback">${editor?.feedback ?? ''}</div>${diags}
-<script nonce="${esc(opts.nonce)}">${SCRIPT}</script>
+<script nonce="${esc(opts.nonce)}">${SCRIPT.replace('__ERD_GENERATION__', String(opts.generation ?? 0))}</script>
 </body></html>`;
 }

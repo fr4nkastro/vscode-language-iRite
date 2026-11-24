@@ -20,10 +20,10 @@ it('restores keyboard focus to the matching action after acknowledgement', () =>
  runInNewContext(script, { document: doc, window: win, acquireVsCodeApi: () => ({ postMessage: (m: any) => posts.push(m) }) });
  listeners['edit-view'].click({ target: button });
  expect(posts).toHaveLength(1);
- listeners.window.message({ data: { type: 'erd-edit-state', requestId: posts[0].requestId + 1, diagram: 'stale', feedback: 'stale', canSave: true } });
+ listeners.window.message({ data: { type: 'erd-edit-state', generation: 0, requestId: posts[0].requestId + 1, diagram: 'stale', feedback: 'stale', canSave: true } });
  expect(elements['edit-feedback'].innerHTML).not.toBe('stale');
  expect(focused).toBe(false);
- listeners.window.message({ data: { type: 'erd-edit-state', requestId: posts[0].requestId, diagram: '', feedback: 'Edit rejected', canSave: true } });
+ listeners.window.message({ data: { type: 'erd-edit-state', generation: 0, requestId: posts[0].requestId, diagram: '', feedback: 'Edit rejected', canSave: true } });
  expect(elements['edit-feedback'].innerHTML).toBe('Edit rejected');
  expect(focused).toBe(true);
 });
