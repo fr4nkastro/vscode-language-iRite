@@ -16,13 +16,13 @@ describe('ERD editing view', () => {
   const make = (count: number): DbSchema => ({reservedIndexes: [], tables:[{index:1,name:'T',maxRecords:count,fields:[{name:'A',typeCode:3,typeName:'integer',size:4}]}]});
   let view = new ErdDraft(make(115000000)).view();
   let html = renderErdDraft(view);
-  expect(html).toContain('Bytes per record: 4 · Bytes per table: 460000000');
-  expect(html).toContain('Total bytes: 460000000 / 460000000');
+  expect(html).toMatch(/Record <b>4 B<\/b>[\s\S]*Table <b>460 MB<\/b>/);
+  expect(html).toContain('<b>460 MB / 460 MB</b>');
   expect(html).not.toContain('Designer byte threshold exceeded');
   view = new ErdDraft(make(115000001)).view(); html = renderErdDraft(view);
   expect(html).toContain('Designer byte threshold exceeded');
   view = new ErdDraft(make(Number.MAX_SAFE_INTEGER)).view(); html = renderErdDraft(view);
-  expect(html).toContain('Total bytes: Unknown');
+  expect(html).toContain('<b>Unknown / 460 MB</b>');
  });
  it('defaults to read-only and explains unavailable rev; preserves navigation', () => {
   const html = renderErdHtml(erd, opts);

@@ -8,7 +8,7 @@ const schema: DbSchema = {reservedIndexes:[],tables:[{index:1,name:'Orders',maxR
 export function harness(startEditing = true, inputSchema: DbSchema = schema) {
  const listeners: Record<string, Record<string, Function>> = {}, posts: any[] = [], nodes: Record<string, any> = {};
  const doc: any = {activeElement:null, getElementById:(id:string)=>nodes[id]};
- for (const id of ['erd','vp','diagram-view','edit-view','edit-toolbar','diagram-mode','edit-mode','edit-save','edit-revert','edit-count','edit-notice','edit-feedback','readonly-view']) nodes[id] = {disabled:false,hidden:false,innerHTML:'',textContent:'',setAttribute(){},addEventListener(type:string,fn:Function){(listeners[id] ??= {})[type]=fn;}};
+ for (const id of ['erd','vp','diagram-view','edit-view','edit-toolbar','diagram-mode','edit-mode','edit-save','edit-revert','edit-count','edit-notice','edit-feedback','edit-errors','readonly-view']) nodes[id] = {disabled:false,hidden:false,innerHTML:'',textContent:'',setAttribute(){},addEventListener(type:string,fn:Function){(listeners[id] ??= {})[type]=fn;}};
  const filter={dataset:{action:'filterTables'},value:'',tagName:'INPUT'};
  const list=[{textContent:'Orders',parentElement:{hidden:false}},{textContent:'Other',parentElement:{hidden:false}}];
  let focusable: any[]=[];

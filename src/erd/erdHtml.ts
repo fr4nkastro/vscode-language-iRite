@@ -143,6 +143,12 @@ export function renderErdReadonly(erd: Erd): string {
 	return edges + cards;
 }
 
+/** `Database diagram: NAME` is shown as `Database: NAME`; any other title is kept. */
+const heading = (title: string): string => {
+	const m = /^Database diagram: ([\s\S]*)$/.exec(title);
+	return m ? `Database: <span class="mono">${esc(m[1])}</span>` : esc(title);
+};
+
 export function renderErdHtml(erd: Erd, opts: ErdHtmlOptions): string {
 	const readonly = renderErdReadonly(erd);
 	const diags = erd.diagnostics.length
@@ -162,17 +168,18 @@ export function renderErdHtml(erd: Erd, opts: ErdHtmlOptions): string {
 <title>${esc(opts.title)}</title>
 <style nonce="${esc(opts.nonce)}">
 body{margin:0;font-family:var(--vscode-font-family);color:var(--vscode-foreground);background:var(--vscode-editor-background)}
-h1{font-size:14px;margin:8px 12px}h2{font-size:13px;margin:8px 12px 0}ul{margin:4px 12px 12px;font-size:12px}li.warning{color:var(--vscode-editorWarning-foreground)}
+h2{font-size:13px;margin:8px 12px 0}ul{margin:4px 12px 12px;font-size:12px}li.warning{color:var(--vscode-editorWarning-foreground)}
 svg{width:100%;height:78vh;cursor:grab;display:block}
 .body{fill:var(--vscode-editor-background);stroke:var(--vscode-panel-border)}.head{fill:var(--vscode-button-background)}.tn{fill:var(--vscode-button-foreground);font-weight:bold;font-size:13px}.tm{fill:var(--vscode-button-foreground);font-size:10px}
 .fn{fill:var(--vscode-foreground);font-size:12px}.ft{fill:var(--vscode-descriptionForeground);font-size:11px}.rel{stroke:var(--vscode-editorWarning-foreground);stroke-width:1.5}.rl{fill:var(--vscode-editorWarning-foreground);font-size:10px}
 .link{cursor:pointer}.error{color:var(--vscode-errorForeground)}pre{white-space:pre-wrap}
 ${ERD_DRAFT_STYLE}
 </style></head><body>
-<h1>${esc(opts.title)}</h1>${opts.recoveryMessage ? `<p class="error" role="alert">${esc(opts.recoveryMessage)}</p>` : ''}
-<nav aria-label="Database views"><button id="diagram-mode" type="button" disabled>Diagram</button><button id="edit-mode" type="button" disabled>Edit schema</button></nav>
-${view ? '' : `<span>${esc(opts.disabledReason ?? 'No .rev available; schema editing is disabled.')}</span>`}
-<div id="edit-toolbar" ${editing ? '' : 'hidden'}><span id="edit-count">${view?.count ?? 0} pending changes</span><button id="edit-revert" type="button" disabled>Discard</button><button id="edit-save" type="button" disabled>Save</button><span id="edit-notice" role="status"></span></div>
+<header class="erd-topbar"><h1>${heading(opts.title)}</h1>
+<nav class="erd-seg" aria-label="Database views"><button id="diagram-mode" type="button" disabled>Diagram</button><button id="edit-mode" type="button" disabled>Edit schema</button></nav>
+${view ? '' : `<span class="erd-unavailable">${esc(opts.disabledReason ?? 'No .rev available; schema editing is disabled.')}</span>`}
+<div id="edit-toolbar" class="erd-status" ${editing ? '' : 'hidden'}><span id="edit-count">${view?.count ? `${view.count} pending ${view.count === 1 ? 'change' : 'changes'}` : 'No unsaved changes'}</span><span id="edit-errors" class="erd-errors" ${view?.issues.some(i => i.severity === 'error') ? '' : 'hidden'}>${view ? view.issues.filter(i => i.severity === 'error').length : 0} errors</span><button id="edit-revert" class="erd-secondary" type="button" disabled>Discard</button><button id="edit-save" class="erd-primary" type="button" disabled>Save</button><span id="edit-notice" role="status"></span></div></header>
+${opts.recoveryMessage ? `<p class="error" role="alert">${esc(opts.recoveryMessage)}</p>` : ''}
 <div id="diagram-view" ${editing ? 'hidden' : ''}>${empty}<svg id="erd" xmlns="http://www.w3.org/2000/svg"><g id="vp"><g id="readonly-view">${readonly}</g></g></svg>${diags}</div>
 <fieldset id="edit-view" ${editing ? '' : 'hidden'} disabled>${view ? renderErdDraft(view) : ''}</fieldset>
 <div id="edit-feedback"></div>

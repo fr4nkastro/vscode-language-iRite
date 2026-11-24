@@ -9,12 +9,13 @@ const save = document.getElementById('edit-save');
 const discard = document.getElementById('edit-revert');
 const countNode = document.getElementById('edit-count');
 const notice = document.getElementById('edit-notice');
+const errorsNode = document.getElementById('edit-errors');
 const feedback = document.getElementById('edit-feedback');
 const readonlyView = document.getElementById('readonly-view');
 let editing = __ERD_EDITING__, available = __ERD_AVAILABLE__, hardDisabled = false;
 let pending = null, modePending = false, aliasPending = false, requestId = 0;
 let queue = [], selected = editView.querySelector('[data-detail]')?.dataset.table, filter = '';
-let draft = null, canSave = false, count = 0, dragging = null;
+let draft = null, canSave = false, count = 0, dragging = null, focusNewIn = null;
 const keyOk = key => typeof key === 'string' && /^draft-[1-9][0-9]{0,15}$/.test(key);
 function updateControls() {
  const busy = !!pending || modePending || queue.length > 0;
@@ -25,7 +26,11 @@ function updateControls() {
  editView.disabled = !available || hardDisabled || modePending || !!pending && (pending.message.type === 'save' || pending.message.type === 'draft-discard');
  save.disabled = !editing || hardDisabled || busy || !canSave || count === 0;
  discard.disabled = !editing || hardDisabled || busy || count === 0;
- countNode.textContent = count + ' pending changes';
+ countNode.textContent = count === 0 ? 'No unsaved changes' : count + (count === 1 ? ' pending change' : ' pending changes');
+ if (errorsNode) {
+  const errors = draft ? draft.issues.filter(i => i.severity === 'error').length : 0;
+  errorsNode.hidden = errors === 0; errorsNode.textContent = errors + (errors === 1 ? ' error' : ' errors');
+ }
 }
 function applyFilter() {
  const input = editView.querySelector('[data-action="filterTables"]');
@@ -58,7 +63,13 @@ function accept(m, render) {
   const focus = captureFocus();
   selected = keyOk(m.selected) ? m.selected : undefined;
   editView.innerHTML = m.fragment; applyFilter(); restoreFocus(focus);
+  if (focusNewIn) { focusLastName(focusNewIn); focusNewIn = null; }
  }
+}
+function focusLastName(table) {
+ const rows = [...editView.querySelectorAll('[data-field-row]')].filter(r => r.dataset.table === table);
+ const input = rows.length ? rows[rows.length - 1].querySelector('input[data-property="name"]') : null;
+ if (input && !input.disabled) input.focus();
 }
 function sendNext() {
  if (pending || modePending || hardDisabled || !editing || !queue.length) { updateControls(); return; }
@@ -87,6 +98,13 @@ function input(e) {
  edit(action);
 }
 editView.addEventListener('input', input); editView.addEventListener('change', input);
+editView.addEventListener('keydown', e => {
+ const node = e.target, d = node && node.dataset;
+ if (e.key !== 'Enter' || e.isComposing || !editing || hardDisabled || !d || d.action !== 'setField' || d.property !== 'name' || !keyOk(d.table) || !keyOk(d.field)) return;
+ const fields = live(d.table);
+ if (!fields.length || fields[fields.length - 1].key !== d.field || pending || queue.length || modePending) return;
+ e.preventDefault(); focusNewIn = d.table; edit({kind:'addField', table:d.table, name:'', typeCode:3});
+});
 function live(table) { return draft?.tables.find(t => t.key === table && !t.removed)?.fields.filter(f => !f.removed) || []; }
 function move(table, field, to) {
  if (pending || queue.length || modePending) return;

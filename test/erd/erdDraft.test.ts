@@ -25,10 +25,10 @@ describe('ErdDraft', () => {
  });
  it('shows total records without an unsupported global limit', () => {
   const html = renderErdDraft(new ErdDraft(base()).view());
-  expect(html).toContain('Total records: 10');
+  expect(html).toContain('Records (all tables)</span><b>10</b>');
   expect(html).not.toContain('256000000');
-  expect(html).toContain('Tables: 1 / 128');
-  expect(html).toContain('Total bytes: 240 / 460000000');
+  expect(html).toContain('<b>1 / 128</b>');
+  expect(html).toContain('<b>240 B / 460 MB</b>');
  });
  it('tracks stable keys, deletion, restore, reorder and undo', () => {
   const d = new ErdDraft(base()); const t = d.view().tables[0]; const [a,b] = t.fields;
