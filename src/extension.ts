@@ -3,6 +3,7 @@ import { checkRevolutionInstalled, registerEngineCommands } from "./commands/eng
 import { registerPreviewCommands } from "./commands/previewScreens";
 import { registerErdCommands } from "./commands/erd";
 import { registerSfcCommands } from "./commands/sfc";
+import { registerCallMapCommands } from "./commands/callMap";
 import { registerDocsCommands } from "./commands/docs";
 import { registerDbAccess } from "./commands/dbAccess";
 
@@ -15,6 +16,7 @@ export function activate(context: vscode.ExtensionContext): void {
   registerPreviewCommands(context);
   registerErdCommands(context);
   registerSfcCommands(context);
+  registerCallMapCommands(context);
   registerDocsCommands(context);
   registerDbAccess(context);
 }

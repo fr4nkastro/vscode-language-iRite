@@ -7,6 +7,9 @@ import { erdToMermaid } from "../erd/erdMermaid";
 import { buildSfc } from "../sfc/sfcModel";
 import type { SfcOptions } from "../sfc/sfcModel";
 import { sfcToMermaid } from "../sfc/sfcMermaid";
+import { buildCallGraph } from "../callmap/callGraph";
+import { callMapToMermaid } from "../callmap/callMermaid";
+import { callViews } from "../callmap/callViews";
 import { buildScreenView } from "../preview/screenModel";
 import type { WidgetView } from "../preview/screenModel";
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from "../preview/screenHtml";
@@ -31,7 +34,7 @@ export interface DocsFile {
 }
 
 export interface DocsDiagnostic {
-	source: "project" | "rev" | "erd" | "sfc";
+	source: "project" | "rev" | "erd" | "sfc" | "callmap";
 	message: string;
 }
 
@@ -94,6 +97,8 @@ export function generateDocs(input: DocsInput): DocsOutput {
 	const screensView = rev ? buildScreenView(rev, project) : { screens: [], diagnostics: [] };
 	erd.diagnostics.forEach((d) => diagnostics.push({ source: "erd", message: d.message }));
 	sfc.diagnostics.forEach((d) => diagnostics.push({ source: "sfc", message: d.message }));
+	const callGraph = buildCallGraph(project, projectDir);
+	callGraph.diagnostics.forEach((d) => diagnostics.push({ source: "callmap", message: d }));
 
 	const base = OUTPUT_DIR;
 	const files: DocsFile[] = [];
@@ -112,7 +117,7 @@ export function generateDocs(input: DocsInput): DocsOutput {
 		l.push(`| Handlers | ${handlers.length} |`);
 		l.push(`| Widgets (.rev) | ${rev ? rev.widgets.length : 0} |`);
 		l.push(`| Screens (.rev) | ${screensView.screens.length} |`, "");
-		l.push("## Pages", "", "- [Database diagram (ERD)](erd.md)", "- [Sequence diagram (SFC)](sfc.md)", "- [Screens](screens.md)", "- [Routines](routines.md)", "");
+		l.push("## Pages", "", "- [Database diagram (ERD)](erd.md)", "- [Sequence diagram (SFC)](sfc.md)", "- [Screens](screens.md)", "- [Routines](routines.md)", "- [Call map (modules)](callmap.md)", "");
 		l.push("## Files (include order)", "");
 		project.files.forEach((f, i) => l.push(`${i + 1}. [${cell(label(f))}](${link(f)})`));
 		if (diagnostics.length > 0) {
@@ -214,9 +219,40 @@ export function generateDocs(input: DocsInput): DocsOutput {
 		files.push({ relPath: `${base}/screens.md`, content: withMarker(l.join("\n")) }, ...svgs);
 	}
 
+	// ---- callmap.md
+	{
+		const l = ["# Call map (modules)", ""];
+		if (callGraph.routines.length === 0) {
+			l.push("No routines found.", "");
+		} else {
+			const view = callViews.moduleView(callGraph, "file");
+			l.push("Each arrow is \"caller module calls callee module\", labelled with the number of calls. Calls to built-in API names (not declared in the project) are left out. Open **iRite: Show Call Map** for the interactive version, which also drills into routines.", "");
+			l.push("```mermaid", callMapToMermaid(callGraph).trimEnd(), "```", "");
+			if (callGraph.hiddenFiles > 0) {
+				l.push(`${callGraph.hiddenFiles} file(s) without routines (\`main.src\`, declaration-only files) are not drawn.`, "");
+			}
+			l.push("## Calls between modules", "");
+			if (view.edges.length === 0) {
+				l.push("No calls between modules.", "");
+			} else {
+				l.push("| Caller module | Callee module | Calls | Call sites |", "| --- | --- | --- | --- |");
+				for (const e of view.edges) {
+					const sites = e.sites.map((i) => {
+						const s = callGraph.sites[i];
+						const f = callGraph.files[callGraph.routines[s.from].file].file;
+						return `${codeCell(callGraph.routines[s.from].name)} -> ${codeCell(callGraph.routines[s.to].name)} ${ref(f, s.line)}`;
+					});
+					l.push(`| ${cell(e.from)} | ${cell(e.to)} | ${e.count} | ${sites.join("<br>")} |`);
+				}
+				l.push("");
+			}
+		}
+		files.push({ relPath: `${base}/callmap.md`, content: withMarker(l.join("\n")) });
+	}
+
 	// ---- routines.md
 	{
-		const l = ["# Routines", ""];
+		const l = ["# Routines", "", "See the [module call map](callmap.md) for how these routines call each other.", ""];
 		const byFile = new Map<string, IriteRoutine[]>();
 		for (const r of project.routines) {
 			byFile.set(r.file, [...(byFile.get(r.file) ?? []), r]);

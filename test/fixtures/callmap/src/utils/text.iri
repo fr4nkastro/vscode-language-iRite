@@ -1,0 +1,5 @@
+procedure ShowText(s: string);
+    begin
+        SetLabelText(ScaleLabel, s);
+        Beep2;
+    end;

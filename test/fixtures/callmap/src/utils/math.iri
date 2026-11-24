@@ -1,0 +1,9 @@
+function Clamp(v: integer; lo: integer; hi: integer): integer;
+    begin
+        return v;
+    end;
+
+procedure Beep2;
+    begin
+        SelectScreen(1);
+    end;

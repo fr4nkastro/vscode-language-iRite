@@ -1,0 +1,14 @@
+procedure ScaleTare(iScale: integer);
+    begin
+        ScaleReset(iScale);
+        SHOWTEXT("tared");
+        ScaleTare(iScale);
+    end;
+
+procedure ScaleReset(iScale: integer);
+    begin
+        if Clamp(GetWeight(iScale), 0, 10) > 5 then
+            ShowText("high");
+        end if;
+        ShowText("low");
+    end;

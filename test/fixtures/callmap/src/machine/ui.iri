@@ -1,0 +1,11 @@
+procedure UiRefresh;
+    begin
+        ScaleTare(1);
+        showtext("x");
+    end;
+
+handler WidgetClicked;
+    begin
+        UiRefresh;
+        SelectScreen(2);
+    end;
