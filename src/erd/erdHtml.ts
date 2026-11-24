@@ -136,7 +136,7 @@ mode();
 function requestMode(editing) { modePending = true; toggle.disabled = true; toggle.checked = !editing; vscode.postMessage({ type: 'erd-edit-mode', generation, editing }); }
 toggle.addEventListener('change', () => { if (pending || modePending || dirty.size) { toggle.checked = !toggle.checked; notice('Apply or revert pending values first.'); return; } requestMode(toggle.checked); });
 editView.addEventListener('input', e => { if (e.target.matches('input,select')) { if (e.target.value === e.target.defaultValue || (e.target.tagName === 'SELECT' && e.target.value === e.target.querySelector('option[selected]')?.value)) dirty.delete(e.target); else dirty.add(e.target); } });
-editView.addEventListener('change', e => { if (e.target.tagName === 'SELECT') { const option = e.target.selectedOptions[0], size = e.target.closest('[data-field]').querySelector('[data-value=size]'); size.value = option.dataset.size; size.dispatchEvent(new Event('input', { bubbles: true })); e.target.dispatchEvent(new Event('input', { bubbles: true })); } });
+editView.addEventListener('change', e => { if (e.target.tagName === 'SELECT') { const row = e.target.closest('[data-field]'); if (!row) return; const option = e.target.selectedOptions[0], size = row.querySelector('[data-value=size]'); size.value = option.dataset.size; size.dispatchEvent(new Event('input', { bubbles: true })); e.target.dispatchEvent(new Event('input', { bubbles: true })); } });
 function send(message) {
  if (pending || modePending) return;
  pending = ++nextRequest;
