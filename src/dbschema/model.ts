@@ -3,9 +3,9 @@ import { editableFieldType } from './fieldTypes';
 
 /** Original positions address the decoded DB.SCHEMA tokens, even after reorder. */
 export interface FieldSource { tableIndex: number; fieldIndex: number }
-export interface DbField extends RevDbField { source?: FieldSource; originalTypeCode?: number; originalSize?: number }
-export interface DbTable { index: number; name: string; maxRecords: number; fields: DbField[]; sourceIndex?: number }
-export interface DbSchema { tables: DbTable[]; reservedIndexes: number[] }
+export interface DbField extends RevDbField { source?: FieldSource; originalTypeCode?: number; originalSize?: number; originalName?: string }
+export interface DbTable { index: number; name: string; maxRecords: number; fields: DbField[]; sourceIndex?: number; originalName?: string; originalMaxRecords?: number; originalFieldCount?: number }
+export interface DbSchema { tables: DbTable[]; reservedIndexes: number[]; originalTableCount?: number }
 export type DbEdit =
  | { kind: "addTable"; name: string; maxRecords: number }
  | { kind: "deleteTable"; table: number }
@@ -21,7 +21,7 @@ const typeName = (code: number): RevDbField['typeName'] => {
 };
 const observed: Record<number, number[]> = { 1: [1], 2: [2], 3: [4], 4: [4], 6: [19], 7: [7, 15, 16, 19, 20] };
 // Structural and word operators from syntaxes/irite.tmLanguage; its math functions are not keywords.
-const keywords = new Set("begin end for loop to while return var if else elsif then and exit is mod not of or record type function procedure program handler".split(" "));
+const keywords = new Set("and array begin builtin constant database datetime else elsif end exit for function handler if integer is loop mod not of or program real record return step string then to type var while procedure".split(" "));
 
 /** Reject ambiguous input rather than assigning the wrong raw token provenance. */
 export function createDbSchema(rev: RevModel): DbSchema {
@@ -42,15 +42,15 @@ export function createDbSchema(rev: RevModel): DbSchema {
   const entry = entries.find(e => e.key === "DB.SCHEMA" && e.index === t.index);
   const tokens = entry?.value.split(",");
   if (!tokens || tokens.length !== 2 + t.fields.length * 3 || t.fields.some((f, i) => tokens[2 + i * 3] !== f.name || Number(tokens[3 + i * 3]) !== f.typeCode || Number(tokens[4 + i * 3]) !== f.size)) throw new Error(`Ambiguous database schema #${t.index}`);
-  return { index: t.index, sourceIndex: t.index, name: t.name, maxRecords: t.maxRecords, fields: t.fields.map((f, fieldIndex) => ({ ...f, typeName: typeName(f.typeCode), originalTypeCode: f.typeCode, originalSize: f.size, source: { tableIndex: t.index, fieldIndex } })) };
+  return { index: t.index, sourceIndex: t.index, name: t.name, maxRecords: t.maxRecords, originalName: t.name, originalMaxRecords: t.maxRecords, originalFieldCount: t.fields.length, fields: t.fields.map((f, fieldIndex) => ({ ...f, typeName: typeName(f.typeCode), originalName: f.name, originalTypeCode: f.typeCode, originalSize: f.size, source: { tableIndex: t.index, fieldIndex } })) };
  });
  if (tables.length * 2 !== entries.length) throw new Error("Malformed database schemas");
- return { tables, reservedIndexes: entries.map(e => e.index as number) };
+ return { tables, reservedIndexes: entries.map(e => e.index as number), originalTableCount: tables.length };
 }
 
 /** Immutable operations; deleting an unknown field/table deliberately deletes its raw tokens. */
 export function editDbSchema(model: DbSchema, edit: DbEdit): DbSchema {
- const result: DbSchema = { reservedIndexes: [...model.reservedIndexes], tables: model.tables.map(t => ({ ...t, fields: t.fields.map(f => ({ ...f, source: f.source && { ...f.source } })) })) };
+ const result: DbSchema = { originalTableCount: model.originalTableCount, reservedIndexes: [...model.reservedIndexes], tables: model.tables.map(t => ({ ...t, fields: t.fields.map(f => ({ ...f, source: f.source && { ...f.source } })) })) };
  if (edit.kind === "addTable") {
   let index = 1;
   while (result.tables.some(t => t.index === index)) index++;
@@ -83,21 +83,28 @@ export function editDbSchema(model: DbSchema, edit: DbEdit): DbSchema {
 
 export function validateDbSchema(model: DbSchema, baseline?: DbSchema): { errors: string[]; warnings: string[] } {
  const errors: string[] = [];
- const warnings = ["Database name lengths, field counts, record limits and device size rules are unconfirmed; validate in Revolution and on a test indicator before production."];
+ const warnings = ["Firmware enforcement, storage overhead and per-table memory limits are unconfirmed; validate in Revolution and on a test indicator before production."];
  const names = new Set<string>();
- const identifier = (name: string, what: string, seen: Set<string>) => {
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) || keywords.has(name.toLowerCase())) errors.push(`${what}: invalid or missing iRite identifier`);
+ const identifier = (name: string, what: string, seen: Set<string>, unchanged: boolean) => {
+  if (!unchanged && (!/^[A-Za-z_][A-Za-z0-9_]{0,7}$/.test(name) || /[\r\n]/.test(name) || keywords.has(name.toLowerCase()))) errors.push(`${what}: invalid or missing iRite identifier (maximum 8 ASCII characters)`);
   const key = name.toLowerCase(); if (seen.has(key)) errors.push(`${what}: duplicate name`); seen.add(key);
  };
  const positive = (n: number, what: string) => { if (!Number.isSafeInteger(n) || n <= 0) errors.push(`${what} must be a positive safe integer`); };
+ if (model.tables.length > 128 && (model.tables.length > (baseline?.tables.length ?? model.originalTableCount ?? 0) || model.tables.some(t => t.sourceIndex === undefined))) errors.push('Database exceeds 128 tables');
  for (const t of model.tables) {
-  identifier(t.name, `Table ${t.index}`, names); positive(t.maxRecords, `Table ${t.name} max records`);
+  const old = baseline && t.sourceIndex === t.index ? baseline.tables.find(table => table.index === t.index) : undefined;
+  const oldName = baseline ? old?.name : t.sourceIndex === t.index ? t.originalName : undefined;
+  const oldMax = baseline ? old?.maxRecords : t.sourceIndex === t.index ? t.originalMaxRecords : undefined;
+  identifier(t.name, `Table ${t.index}`, names, oldName !== undefined && t.name === oldName);
+  if (t.maxRecords !== oldMax) { positive(t.maxRecords, `Table ${t.name} max records`); if (t.maxRecords > 2000000) errors.push(`Table ${t.name} max records exceeds 2000000`); }
+  if (t.fields.length > 100 && (t.fields.length > (baseline ? old?.fields.length ?? 0 : t.originalFieldCount ?? 0) || t.fields.some(f => !f.source))) errors.push(`Table ${t.name} exceeds 100 fields`);
   if (!t.fields.length) errors.push(`Table ${t.name} requires at least one field`);
   const fields = new Set<string>();
   for (const f of t.fields) {
-   identifier(f.name, `Field ${t.name}.${f.name}`, fields);
+   const previous = baseline && old && f.source?.tableIndex === old.index ? old.fields[f.source.fieldIndex] : undefined;
+   const oldFieldName = baseline ? previous?.name : f.source?.tableIndex === t.sourceIndex ? f.originalName : undefined;
+   identifier(f.name, `Field ${t.name}.${f.name}`, fields, oldFieldName !== undefined && f.name === oldFieldName);
    const type = editableFieldType(f.typeCode);
-   const previous = baseline && f.source ? baseline.tables.find(table => table.index === f.source!.tableIndex)?.fields[f.source.fieldIndex] : undefined;
    const untouched = f.source && f.typeCode === (baseline ? previous?.typeCode : f.originalTypeCode) && f.size === (baseline ? previous?.size : f.originalSize);
    if (!type) warnings.push(`Field ${t.name}.${f.name}: unknown type code preserved`);
    else {

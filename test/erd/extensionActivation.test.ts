@@ -13,7 +13,7 @@ vi.mock('vscode', () => ({
  },
  workspace: {createFileSystemWatcher: () => ({onDidChange() {}, onDidCreate() {}, onDidDelete() {}, dispose() {}})},
  RelativePattern: class {}, ViewColumn: {Beside: 2},
-}), {virtual:true});
+}));
 vi.mock('../../src/commands/engine', () => ({checkRevolutionInstalled() {}, registerEngineCommands() {}}));
 vi.mock('../../src/commands/previewScreens', () => ({registerPreviewCommands() {}}));
 vi.mock('../../src/commands/screenEditor', () => ({registerScreenEditor() {}}));

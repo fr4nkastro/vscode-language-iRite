@@ -5,6 +5,24 @@ import { createDbSchema, editDbSchema, validateDbSchema } from "../../src/dbsche
 const rev = () => parseRev('<Indicator><Config>\nDB.SCHEMA#2=0010,00,A,03,04,Mystery,99,007\nDB.ALIAS#2=Table_1\n</Config></Indicator>');
 
 describe("database schema model", () => {
+ it('enforces designer name and count boundaries on new inputs', () => {
+  const base = createDbSchema(rev());
+  for (const name of ['ABCDEFGH', '_abc1234']) expect(validateDbSchema(editDbSchema(base, {kind:'updateTable', table:2, name}), base).errors).toEqual([]);
+  for (const name of ['ABCDEFGHI', 'a\n', 'database', 'BUILTIN']) {
+   expect(validateDbSchema(editDbSchema(base, {kind:'updateTable', table:2, name}), base).errors.join(' ')).toMatch(/identifier/i);
+   expect(validateDbSchema(editDbSchema(base, {kind:'updateField', table:2, field:0, changes:{name}}), base).errors.join(' ')).toMatch(/identifier/i);
+  }
+  for (const n of [2000000, 2000001]) expect(validateDbSchema(editDbSchema(base, {kind:'updateTable',table:2,maxRecords:n}), base).errors.length > 0).toBe(n > 2000000);
+  const field = {name:'X', typeCode:3, typeName:'integer' as const, size:4};
+  for (const n of [100,101]) {
+   const m = { ...base, tables:[{...base.tables[0], fields:Array.from({length:n}, (_, i) => ({...field,name:`F${i}`}))}] };
+   expect(validateDbSchema(m, base).errors.some(e => /100/.test(e))).toBe(n > 100);
+  }
+  for (const n of [128,129]) {
+   const m = {...base, tables:Array.from({length:n}, (_,i) => ({index:i+1,name:`T${i}`,maxRecords:1,fields:[field]}))};
+   expect(validateDbSchema(m, base).errors.some(e => /128/.test(e))).toBe(n > 128);
+  }
+ });
  it("maps observed type 1 on read and after type edits", () => {
   const parsed = createDbSchema(parseRev('<Indicator><Config>\nDB.SCHEMA#1=1,0,Weight,1,1\nDB.ALIAS#1=Weights\n</Config></Indicator>'));
   expect(parsed.tables[0].fields[0].typeName).toBe('integer');

@@ -11,6 +11,17 @@ const schema: DbSchema = { reservedIndexes: [], tables: [
 ] };
 
 describe('ERD editing view', () => {
+ it('shows safe estimates and warns only above the designer threshold', () => {
+  const make = (count: number): DbSchema => ({reservedIndexes: [], tables:[{index:1,name:'T',maxRecords:count,fields:[{name:'A',typeCode:3,typeName:'integer',size:4}]}]});
+  let view = renderErdEditState(make(115000000));
+  expect(view.diagram).toContain('Estimated record: 4 bytes; table: 460000000 bytes');
+  expect(view.feedback).toContain('460000000 bytes / 460000000 bytes');
+  expect(view.feedback).not.toContain('Warning: estimate exceeds');
+  view = renderErdEditState(make(115000001));
+  expect(view.feedback).toContain('Warning: estimate exceeds');
+  view = renderErdEditState(make(Number.MAX_SAFE_INTEGER));
+  expect(view.feedback).toContain('total: unavailable');
+ });
  it('defaults to read-only and explains unavailable rev; preserves navigation', () => {
   const html = renderErdHtml(erd, opts);
   expect(html).toContain('Edit schema'); expect(html).toContain('No .rev');
@@ -31,6 +42,8 @@ describe('ERD editing view', () => {
   const html = renderErdHtml(erd, { ...opts, editor: { schema, startEditing: true } });
   expect(html).toContain('data-editing="true"'); expect(html).toContain('data-table="1"');
   expect(html).toContain('erd-edit-state'); expect(html).toContain('requestId');
+  expect(html).toContain("kind: action, table, name: '', typeCode: 3, size: 4");
+  expect(html).toContain("kind: 'addTable', name: '', maxRecords: 1");
   expect(html).toContain('foreignObject'); expect(html).toContain('nonce="abc"');
  });
 });

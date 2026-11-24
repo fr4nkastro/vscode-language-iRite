@@ -232,9 +232,7 @@ The editor never writes `main.iri`: after saving, regenerate it in Revolution
 or use the displayed declarations and constants. Renames, deletions and field
 order changes can break existing code and DB access routines; review both.
 Designer type defaults and size controls do not establish device acceptance.
-Database name lengths, field counts, record limits and device size rules remain
-unconfirmed. Opening an edited file in Revolution and loading it on an indicator
-remain unverified; check both before production and keep the backup.
+The editor enforces v308 designer limits for new or changed names, field and table counts, and record counts. It estimates record, table and total bytes from stored sizes and warns above Revolution's 460,000,000-byte row-color threshold; this is not a proven indicator hard limit. Firmware enforcement, overhead and any per-table memory cap remain unconfirmed. Opening an edited file in Revolution and loading it on an indicator remain unverified; check both before production and keep the backup.
 
 ### Database diagram (ERD)
 
