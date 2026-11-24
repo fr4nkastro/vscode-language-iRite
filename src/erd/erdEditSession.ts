@@ -3,6 +3,7 @@ import type { DbSchema } from '../dbschema/model';
 import { parseDbMessage } from '../dbschema/messages';
 import { dbIriHint } from '../dbschema/iriHint';
 import { saveDatabase } from '../dbschema/workflow';
+import { planDbSave } from '../dbschema/save';
 import type { DbSaveIO } from '../dbschema/workflow';
 import { parseRev } from '../rev';
 import * as path from 'path';
@@ -20,6 +21,9 @@ export class ErdEditSession {
  hint: string | undefined;
  constructor(private bytes: Buffer, public model: DbSchema, private readonly io: DbSaveIO) {}
  get readback(): Buffer { return Buffer.from(this.bytes); }
+ get hasChanges(): boolean {
+  try { return !!planDbSave(this.bytes, this.model); } catch { return true; }
+ }
  async request(raw: unknown): Promise<{ message?: string; saved?: boolean }> {
   if (!this.editing || this.busy || this.unusable) return { message: 'Editing or saving is disabled.' };
   const msg = parseDbMessage(raw, this.model);
@@ -40,7 +44,7 @@ export class ErdEditSession {
    return { saved: true };
   } catch (e) {
    if (wrote) this.unusable = true;
-   return { message: `${e instanceof Error ? e.message : String(e)}${wrote ? ' Reopen the editor after recovery.' : ''}` };
+   return { message: `${e instanceof Error ? e.message : String(e)}${wrote ? ' Restore the backup before continuing. Reopen the editor after recovery.' : ''}` };
   } finally { this.busy = false; }
  }
 }

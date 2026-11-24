@@ -29,6 +29,7 @@ class ErdPanel {
  private staged = false;
  private refreshPending = false;
  private aliasPending = false;
+ private recoveryMessage: string | undefined;
 
  private constructor(private readonly panel: vscode.WebviewPanel, private readonly mainSrc: string, editing: boolean) {
   const dir = path.dirname(mainSrc);
@@ -53,6 +54,13 @@ class ErdPanel {
   const existing = ErdPanel.panels.get(key);
   if (existing) {
    existing.panel.reveal();
+   if (existing.session?.unusable) {
+    existing.staged = false;
+    existing.aliasPending = false;
+    existing.refreshPending = false;
+    existing.render(editing);
+    return;
+   }
    if (editing) {
     if (existing.session && !existing.session.unusable) existing.aliasPending = true;
     void existing.panel.webview.postMessage({type:'erd-enable-edit', generation:existing.generation});
@@ -112,6 +120,7 @@ class ErdPanel {
    this.panel.webview.html = renderErdHtml(buildErd(this.project, rev), {
     cspSource:this.panel.webview.cspSource, nonce:crypto.randomBytes(16).toString('base64'), title:`Database diagram: ${path.basename(dir)}`,
     editor:this.session ? {schema:this.session.model, startEditing:editing} : undefined, generation:this.generation,
+    recoveryMessage:this.recoveryMessage,
     disabledReason:selection.ambiguous ? 'Multiple .rev files make the database write target ambiguous; schema editing is disabled.' : undefined,
    });
   } catch (e) {
@@ -144,8 +153,9 @@ class ErdPanel {
   const result = await session.request(msg.message);
   if (this.disposed || session !== this.session) return;
   const request = msg.message as {type?: unknown} | null;
-  if (request?.type === 'edit' && !result.message) this.staged = true;
-  if (result.saved) this.staged = false;
+  if (request?.type === 'edit' && !result.message) this.staged = session.hasChanges;
+  if (result.saved || (request?.type === 'save' && !result.message)) this.staged = false;
+  if (session.unusable && result.message) this.recoveryMessage = result.message;
   const state = renderErdEditState(session.model, {hint:session.hint, message:result.message});
   const readonly = result.saved ? renderErdReadonly(buildErd(this.project, parseRev(session.readback.toString('utf8')))) : undefined;
   if (result.saved) void vscode.window.showInformationMessage(`iRite: database schema saved. Backup: ${path.basename(this.backup)}. Regenerate main.iri; see the editor.`);

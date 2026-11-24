@@ -9,6 +9,7 @@ export interface ErdHtmlOptions {
 	title: string;
 	generation?: number;
 	disabledReason?: string;
+	recoveryMessage?: string;
 	editor?: { schema: DbSchema; startEditing?: boolean; hint?: string; message?: string };
 }
 
@@ -220,7 +221,7 @@ svg{width:100%;height:78vh;cursor:grab;display:block}
 .link{cursor:pointer}
 .edit-body{box-sizing:border-box;width:100%;height:100%;overflow:auto;padding:8px;background:#252526;border:1px solid #888;color:var(--vscode-foreground,#ddd);font-size:12px}.edit-body label{display:inline-block;margin:3px}.edit-body input{width:90px}.field{border-top:1px solid #888;padding:4px}.edit-body button{margin:2px}pre{white-space:pre-wrap}.error{color:#f88}
 </style></head><body>
-<h1>${esc(opts.title)}</h1><label><input id="edit-toggle" type="checkbox" ${editor ? '' : 'disabled'} ${editing && editor ? 'checked' : ''}>Edit schema</label>${editor ? '' : `<span>${esc(opts.disabledReason ?? 'No .rev available; schema editing is disabled.')}</span>`}
+<h1>${esc(opts.title)}</h1>${opts.recoveryMessage ? `<p class="error" role="alert">${esc(opts.recoveryMessage)}</p>` : ''}<label><input id="edit-toggle" type="checkbox" ${editor ? '' : 'disabled'} ${editing && editor ? 'checked' : ''}>Edit schema</label>${editor ? '' : `<span>${esc(opts.disabledReason ?? 'No .rev available; schema editing is disabled.')}</span>`}
 <div id="edit-toolbar" data-editing="${editing && !!editor}" style="display:${editing && editor ? '' : 'none'}"><button id="add-table">Add table</button><button id="edit-revert">Revert unsent edits</button><button id="edit-save" ${editor?.canSave ? '' : 'disabled'}>Save</button><span id="edit-notice" role="status"></span></div>${empty}
 <svg id="erd" xmlns="http://www.w3.org/2000/svg"><g id="vp"><g id="readonly-view" style="display:${editing && editor ? 'none' : ''}">${readonly}</g><g id="edit-view" style="display:${editing && editor ? '' : 'none'}">${editor?.diagram ?? ''}</g></g></svg>
 <div id="edit-feedback">${editor?.feedback ?? ''}</div>${diags}

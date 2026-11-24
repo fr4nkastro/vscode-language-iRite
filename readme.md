@@ -219,6 +219,12 @@ saving. Validation errors appear in the view and block **Save**.
 **Save** explicitly writes the draft: it asks for confirmation, backs up the
 original, refuses a stale file, recomputes `ConfigHash`, writes atomically and
 checks the schema by reading it back. Saving with no changes reports that fact.
+If a write or readback fails after writing starts, restore the backup before
+continuing. Re-run either database diagram command to reload the file from disk;
+the recovery warning remains visible, and the editor does not retry the write.
+Watcher refresh is deferred while editing or while other pending work blocks it.
+Cancelling confirmation leaves the draft visible while editing, but permits a
+deferred refresh after editing ends.
 The editor never writes `main.iri`: after saving, regenerate it in Revolution
 or use the displayed declarations and constants. Renames, deletions and field
 order changes can break existing code and DB access routines; review both.
