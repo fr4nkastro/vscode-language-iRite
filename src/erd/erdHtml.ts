@@ -1,10 +1,13 @@
 /** Self-contained SVG ERD page (no external libs). Pure: no `vscode` imports. */
 import type { Erd, ErdTable } from "./erdModel";
+import type { DbSchema } from "../dbschema/model";
+import { renderErdEditState } from "./erdEdit";
 
 export interface ErdHtmlOptions {
 	cspSource: string;
 	nonce: string;
 	title: string;
+	editor?: { schema: DbSchema; startEditing?: boolean; hint?: string; message?: string };
 }
 
 const CARD_W = 260;
@@ -98,7 +101,7 @@ svg.addEventListener('wheel', (e) => {
   const nk = Math.min(4, Math.max(0.1, k * (e.deltaY < 0 ? 1.1 : 1 / 1.1)));
   tx = px - (px - tx) * nk / k; ty = py - (py - ty) * nk / k; k = nk; apply();
 }, { passive: false });
-svg.addEventListener('mousedown', (e) => { drag = { x: e.clientX, y: e.clientY, tx, ty }; moved = false; });
+svg.addEventListener('mousedown', (e) => { if (e.target.closest && e.target.closest('.edit-card')) return; drag = { x: e.clientX, y: e.clientY, tx, ty }; moved = false; });
 window.addEventListener('mousemove', (e) => {
   if (!drag) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
@@ -110,6 +113,60 @@ svg.addEventListener('click', (e) => {
   if (moved) return;
   const h = e.target.closest ? e.target.closest('.hdr[data-line]') : null;
   if (h) vscode.postMessage({ type: 'open', file: h.getAttribute('data-file'), line: Number(h.getAttribute('data-line')) });
+});
+const toggle = document.getElementById('edit-toggle');
+const readonlyView = document.getElementById('readonly-view'), editView = document.getElementById('edit-view');
+const feedback = document.getElementById('edit-feedback'), save = document.getElementById('edit-save');
+let pending = null, nextRequest = 0, focusSelector = null;
+const dirty = new Set();
+const notice = text => { document.getElementById('edit-notice').textContent = text; };
+const numberValue = input => input.value.trim() === '' ? null : Number(input.value);
+document.getElementById('edit-revert').addEventListener('click', () => {
+ if (pending) return;
+ dirty.forEach(input => { if (input.tagName === 'SELECT') { const selected = input.querySelector('option[selected]'); if (selected) input.value = selected.value; } else input.value = input.defaultValue; });
+ dirty.clear(); notice('Unsent edits reverted.');
+});
+function mode() { readonlyView.style.display = toggle.checked ? 'none' : ''; editView.style.display = toggle.checked ? '' : 'none'; document.getElementById('edit-toolbar').style.display = toggle.checked ? '' : 'none'; }
+mode();
+toggle.addEventListener('change', () => { if (pending || dirty.size) { toggle.checked = !toggle.checked; notice('Apply or revert pending values first.'); return; } mode(); });
+editView.addEventListener('input', e => { if (e.target.matches('input,select')) { if (e.target.value === e.target.defaultValue || (e.target.tagName === 'SELECT' && e.target.value === e.target.querySelector('option[selected]')?.value)) dirty.delete(e.target); else dirty.add(e.target); } });
+editView.addEventListener('change', e => { if (e.target.tagName === 'SELECT') e.target.dispatchEvent(new Event('input', { bubbles: true })); });
+function send(message) {
+ if (pending) return;
+ pending = ++nextRequest;
+ const active = document.activeElement;
+ const t = active && active.closest ? active.closest('[data-table]') : null;
+ const f = active && active.closest ? active.closest('[data-field]') : null;
+ const action = active && active.dataset ? active.dataset.action : null;
+ focusSelector = t && action && /^\\d+$/.test(t.dataset.table) && /^[A-Za-z]+$/.test(action) ? '[data-table="' + t.dataset.table + '"] ' + (f && /^\\d+$/.test(f.dataset.field) && !['deleteField','moveUp','moveDown'].includes(action) ? '[data-field="' + f.dataset.field + '"] ' : '') + '[data-action="' + (['deleteField','moveUp','moveDown'].includes(action) ? 'addField' : action) + '"]' : null;
+ document.querySelectorAll('#edit-view input, #edit-view select, #edit-view button, #edit-toolbar button, #edit-toggle').forEach(e => e.disabled = true);
+ vscode.postMessage({ type: 'erd-edit-request', requestId: pending, message });
+}
+editView.addEventListener('click', e => {
+ const button = e.target.closest('button[data-action]'); if (!button || pending) return;
+ const tableNode = button.closest('[data-table]'), fieldNode = button.closest('[data-field]');
+ const table = Number(tableNode.dataset.table), field = fieldNode ? Number(fieldNode.dataset.field) : undefined, action = button.dataset.action;
+ const allowed = action === 'updateField' ? fieldNode : action === 'updateTable' ? tableNode : null;
+ if ([...dirty].some(input => !allowed || !allowed.contains(input) || (action === 'updateTable' && !input.hasAttribute('data-table-value')))) { notice('Apply or revert other pending values first.'); return; }
+ let edit;
+ if (action === 'updateTable') edit = { kind: action, table, name: tableNode.querySelector('[data-table-value=name]').value, maxRecords: numberValue(tableNode.querySelector('[data-table-value=maxRecords]')) };
+ else if (action === 'updateField') edit = { kind: action, table, field, changes: { name: fieldNode.querySelector('[data-value=name]').value, typeCode: numberValue(fieldNode.querySelector('[data-value=typeCode]')), size: numberValue(fieldNode.querySelector('[data-value=size]')) } };
+ if (edit && (edit.maxRecords === null || (edit.changes && (edit.changes.size === null || edit.changes.typeCode === null)))) { notice('Numeric values cannot be blank.'); return; }
+ if (edit) { send({ type: 'edit', edit }); return; }
+ else if (action === 'moveUp' || action === 'moveDown') edit = { kind: 'moveField', table, from: field, to: field + (action === 'moveUp' ? -1 : 1) };
+ else if (action === 'addField') edit = { kind: action, table, name: '', typeCode: 3, size: 4 };
+ else edit = { kind: action, table, ...(field === undefined ? {} : { field }) };
+ send({ type: 'edit', edit });
+});
+document.getElementById('add-table').addEventListener('click', () => { if (dirty.size) { notice('Apply or revert pending values first.'); return; } send({ type: 'edit', edit: { kind: 'addTable', name: '', maxRecords: 1 } }); });
+save.addEventListener('click', () => { if (dirty.size) { notice('Apply or revert pending values first.'); return; } send({ type: 'save' }); });
+window.addEventListener('message', e => {
+ const m = e.data;
+ if (!m || m.type !== 'erd-edit-state' || !pending || m.requestId !== pending) return;
+ editView.innerHTML = m.diagram; feedback.innerHTML = m.feedback; dirty.clear(); pending = null;
+ toggle.disabled = false; document.getElementById('add-table').disabled = false; document.getElementById('edit-revert').disabled = false; save.disabled = !m.canSave;
+ if (focusSelector) { const target = editView.querySelector(focusSelector); if (target && !target.disabled) target.focus(); }
+ focusSelector = null; notice('');
 });
 `;
 
@@ -134,6 +191,8 @@ export function renderErdHtml(erd: Erd, opts: ErdHtmlOptions): string {
 		? `<h2>Diagnostics</h2><ul>${erd.diagnostics.map((d) => `<li class="${d.severity}">${esc(d.message)}</li>`).join("")}</ul>`
 		: "";
 	const empty = erd.tables.length === 0 ? `<p>No database tables found.</p>` : "";
+	const editor = opts.editor && renderErdEditState(opts.editor.schema, opts.editor);
+	const editing = !!opts.editor?.startEditing;
 	const csp = `default-src 'none'; style-src ${esc(opts.cspSource)} 'unsafe-inline'; script-src 'nonce-${esc(opts.nonce)}';`;
 	return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
@@ -146,10 +205,12 @@ svg{width:100%;height:78vh;cursor:grab;display:block}
 .body{fill:#252526;stroke:#888}.head{fill:#0e639c}.tn{fill:#fff;font-weight:bold;font-size:13px}.tm{fill:#cde;font-size:10px}
 .fn{fill:#ddd;font-size:12px}.ft{fill:#9cdcfe;font-size:11px}.rel{stroke:#d9a400;stroke-width:1.5}.rl{fill:#d9a400;font-size:10px}
 .link{cursor:pointer}
+.edit-body{box-sizing:border-box;width:100%;height:100%;overflow:auto;padding:8px;background:#252526;border:1px solid #888;color:var(--vscode-foreground,#ddd);font-size:12px}.edit-body label{display:inline-block;margin:3px}.edit-body input{width:90px}.field{border-top:1px solid #888;padding:4px}.edit-body button{margin:2px}pre{white-space:pre-wrap}.error{color:#f88}
 </style></head><body>
-<h1>${esc(opts.title)}</h1>${empty}
-<svg id="erd" xmlns="http://www.w3.org/2000/svg"><g id="vp">${edges}${cards}</g></svg>
-${diags}
+<h1>${esc(opts.title)}</h1><label><input id="edit-toggle" type="checkbox" ${editor ? '' : 'disabled'} ${editing && editor ? 'checked' : ''}>Edit schema</label>${editor ? '' : '<span>No .rev available; schema editing is disabled.</span>'}
+<div id="edit-toolbar" data-editing="${editing && !!editor}" style="display:${editing && editor ? '' : 'none'}"><button id="add-table">Add table</button><button id="edit-revert">Revert unsent edits</button><button id="edit-save" ${editor?.canSave ? '' : 'disabled'}>Save</button><span id="edit-notice" role="status"></span></div>${empty}
+<svg id="erd" xmlns="http://www.w3.org/2000/svg"><g id="vp"><g id="readonly-view" style="display:${editing && editor ? 'none' : ''}">${edges}${cards}</g><g id="edit-view" style="display:${editing && editor ? '' : 'none'}">${editor?.diagram ?? ''}</g></g></svg>
+<div id="edit-feedback">${editor?.feedback ?? ''}</div>${diags}
 <script nonce="${esc(opts.nonce)}">${SCRIPT}</script>
 </body></html>`;
 }
