@@ -14,6 +14,7 @@ export interface SvgOptions {
 	panel: PanelId;
 	/** Project-relative path (`sdimages/a.png`) -> data URI, or undefined when the file is missing. */
 	imageData?: (relPath: string) => string | undefined;
+	builtinImageUri?: (id: string, panel: PanelId) => string | undefined;
 }
 
 const SAFE_COLOR = /^(#[0-9A-Fa-f]{3,8}|[A-Za-z]{3,20})$/;
@@ -27,9 +28,9 @@ function shape(w: WidgetView, width: number, height: number, opts: SvgOptions): 
 	switch (w.typeName) {
 		case "image": {
 			const res = w.image ? resolveImage(w.image, "") : undefined;
-			const uri = res && res.kind === "file" ? opts.imageData?.(res.relPath) : undefined;
-			if (uri && /^data:image\/[a-z+.-]+;base64,[A-Za-z0-9+/=]+$/.test(uri)) {
-				return `<image href="${uri}" width="${width}" height="${height}" preserveAspectRatio="none"/>`;
+			const uri = w.image?.startsWith("local://") ? opts.builtinImageUri?.(w.image.slice(8), opts.panel) : res && res.kind === "file" ? opts.imageData?.(res.relPath) : undefined;
+			if (uri && (/^data:image\/[a-z+.-]+;base64,[A-Za-z0-9+/=]+$/.test(uri) || /^file:\/\/\//.test(uri))) {
+				return `<image href="${xmlEscape(uri)}" width="${width}" height="${height}" preserveAspectRatio="none"/>`;
 			}
 			return (
 				`<rect x="0.5" y="0.5" width="${Math.max(0, width - 1)}" height="${Math.max(0, height - 1)}" fill="#eee" stroke="#888" stroke-dasharray="3 2"/>` +

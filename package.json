@@ -127,6 +127,11 @@
 		],
 		"commands": [
 			{
+				"command": "irite.firmware.importImages",
+				"title": "iRite: Import 1280 Built-in Images from Firmware",
+				"description": "Import built-in images from a firmware update folder or rootfs.tar; reopen views to refresh"
+			},
+			{
 				"command": "irite.build",
 				"title": "iRite: Build | ",
 				"description": "Setup Build Enviroment"
@@ -186,6 +191,11 @@
 			"type": "object",
 			"title": "iRite Setup Build",
 			"properties": {
+				"irite.firmware.imagesVersion": {
+					"type": "string",
+					"default": "",
+					"description": "Firmware image version to use. Empty or unavailable selects the latest imported version; reopen views after changing this setting."
+				},
 				"irite.build.engine": {
 					"type": "string",
 					"default": "revolution",

@@ -7,6 +7,7 @@ import { registerSfcCommands } from "./commands/sfc";
 import { registerCallMapCommands } from "./commands/callMap";
 import { registerDocsCommands } from "./commands/docs";
 import { registerDbAccess } from "./commands/dbAccess";
+import { registerFirmwareImages, sweepFirmwareCacheOnActivation } from "./commands/firmwareImages";
 
 export function activate(context: vscode.ExtensionContext): void {
   const channel = vscode.window.createOutputChannel("iRite Information");
@@ -21,6 +22,8 @@ export function activate(context: vscode.ExtensionContext): void {
   registerCallMapCommands(context);
   registerDocsCommands(context);
   registerDbAccess(context);
+  registerFirmwareImages(context);
+  sweepFirmwareCacheOnActivation(context);
 }
 
 export function deactivate(): void {

@@ -4,6 +4,8 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { generateDocs, shouldWrite } from "../docs/generateDocs";
+import { loadImageCache } from "../firmware/imageCache";
+import { builtinResolver, fileUri } from "../firmware/imageResolver";
 import { loadIriteProject } from "../irite";
 import { parseRev } from "../rev";
 import type { SfcOptions } from "../sfc/sfcModel";
@@ -82,6 +84,7 @@ async function run(context: vscode.ExtensionContext, mainSrc: string): Promise<v
 		version,
 		now: new Date(),
 		sfcOptions: sfcOptions(),
+		builtinImageUri: builtinResolver(loadImageCache(context.globalStorageUri.fsPath, vscode.workspace.getConfiguration("irite.firmware").get<string>("imagesVersion", "")), fileUri),
 	});
 	const enc = new TextEncoder();
 	let written = 0;

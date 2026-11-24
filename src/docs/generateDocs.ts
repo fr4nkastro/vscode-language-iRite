@@ -25,6 +25,7 @@ export interface DocsInput {
 	version: string;
 	now: Date;
 	sfcOptions?: SfcOptions;
+	builtinImageUri?: (id: string, panel: "7" | "12") => string | undefined;
 }
 
 export interface DocsFile {
@@ -214,7 +215,7 @@ export function generateDocs(input: DocsInput): DocsOutput {
 				l.push(`| ${w.id} | ${cell(w.typeName)} (${w.type}) | ${cell(w.alias)} | ${cell(w.text)} | ${geo} | ${refs} |`);
 			}
 			l.push("");
-			svgs.push({ relPath: `${base}/screens/screen-${sc.number}.svg`, content: renderSvg(sc.number, sc.widgets) });
+			svgs.push({ relPath: `${base}/screens/screen-${sc.number}.svg`, content: renderSvg(sc.number, sc.widgets, input.builtinImageUri) });
 		}
 		files.push({ relPath: `${base}/screens.md`, content: withMarker(l.join("\n")) }, ...svgs);
 	}
@@ -288,7 +289,7 @@ function signature(r: IriteRoutine): string {
 const SAFE_COLOR = /^(#[0-9A-Fa-f]{3,8}|[A-Za-z]{3,20})$/;
 const color = (c: string | undefined, fallback: string): string => (c && SAFE_COLOR.test(c) ? c : fallback);
 
-function renderSvg(screen: number, widgets: WidgetView[]): string {
+function renderSvg(screen: number, widgets: WidgetView[], builtinImageUri?: DocsInput["builtinImageUri"]): string {
 	const out: string[] = [GENERATED_MARKER];
 	out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}" width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" font-family="sans-serif">`);
 	out.push(`<title>${xml(`Screen ${screen}`)}</title>`);
@@ -306,6 +307,11 @@ function renderSvg(screen: number, widgets: WidgetView[]): string {
 		}
 		const width = w.width ?? 60;
 		const height = w.height ?? 24;
+		const uri = w.typeName === "image" && w.image?.startsWith("local://") ? builtinImageUri?.(w.image.slice(8), "7") : undefined;
+		if (uri && /^file:\/\/\//.test(uri)) {
+			out.push(`${head}<image href="${xml(uri)}" x="${x}" y="${y}" width="${width}" height="${height}" preserveAspectRatio="none"/></g>`);
+			continue;
+		}
 		const fill = w.typeName === "image" ? "#e8e8e8" : color(w.background, "none");
 		const text = w.typeName === "image" ? `[image: ${w.image ?? ""}]` : (w.text ?? w.alias ?? w.typeName);
 		const size = Math.max(8, Math.min(w.fontSize ?? 12, Math.max(8, height - 4)));

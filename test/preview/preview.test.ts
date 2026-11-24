@@ -87,6 +87,18 @@ describe("renderScreensHtml", () => {
 		expect(html).toContain('src="vscode-resource:/p/buttonG.png"');
 		expect(html).toMatch(/class="w placeholder"[^>]*data-id="2"[^>]*>[^<]*local:\/\/9\.png/);
 	});
+	it("renders cached built-ins for both panels and switches their URIs with panel state", () => {
+		const h = renderScreensHtml(buildScreenView(rev), {
+			...opts,
+			initialState: { panel: "12" },
+			builtinUri: (id: string, panel: "7" | "12") => id === "9.png" ? `vscode-resource:/${panel}/9.png` : undefined,
+		});
+		expect(h).toMatch(/data-id="2"[^>]*data-uri7="vscode-resource:\/7\/9.png"[^>]*data-uri12="vscode-resource:\/12\/9.png"[^>]*src="vscode-resource:\/12\/9.png"/);
+		expect(h).toContain("el.src = state.panel === '12' ? el.dataset.uri12 : el.dataset.uri7");
+	});
+	it("keeps a missing built-in placeholder with the exact import hint", () => {
+		expect(html).toMatch(/class="w placeholder"[^>]*title="Import the built-in images from the 1280 firmware"[^>]*>local:\/\/9\.png/);
+	});
 	it("escapes label text and aliases", () => {
 		const evil = parseRev(
 			readFileSync(join(__dirname, "../fixtures/rev/sample.rev"), "utf8").replace("Hello, world", "<script>alert(1)</script>").replace("lbl3", "a\"><img src=x>"),

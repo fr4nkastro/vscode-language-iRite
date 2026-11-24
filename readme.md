@@ -101,11 +101,24 @@ Limitations:
 -   Paint order is assumed to be widget id ascending.
 -   Some `.rev` fields are still unknown (e.g. label alignment); unknown
     widget types are drawn as hatched boxes.
--   Built-in images (`local://N.png`) and missing files are drawn as dashed
-    placeholders.
+-   Missing built-in images (`local://N.png`) and missing files are drawn as dashed
+    placeholders until imported or provided.
 -   Scales show a sample weight; screen names are not stored in the `.rev`,
     so they are read from the code convention above and screens are always
     identified by number too.
+
+### Built-in firmware images
+
+Run **iRite: Import 1280 Built-in Images from Firmware** and select a firmware
+`update` folder or its `rootfs.tar`. Images are Rice Lake property and are not
+shipped with this extension. They are cached in VS Code extension global storage
+under `firmware-images/<firmwareVersion>/{default,7,12}/`, with a manifest.
+The notification lists rejected images (not PNG / too large); a re-import of an existing version with fewer usable images keeps the current cache and warns.
+Multiple versions coexist; `irite.firmware.imagesVersion` selects one (otherwise
+the latest imported version). Reopen Preview Screens and the screen editor after
+import. The image widget (type 7) picker includes numbered built-ins and
+`sdimages/` files; Bitmap (type 2) retains its style selector, not a file picker.
+The panel variant is preferred, followed by default and the other panel.
 
 ### Screen editor (opt-in, writes the `.rev`)
 
@@ -166,7 +179,7 @@ Right-click a `.rev` and choose **iRite: Edit Screens** (or "Open With..." >
 ```
 node rev-cli.js screens <file.rev>
 node rev-cli.js widgets <file.rev> [--screen n] [--panel 7|12]
-node rev-cli.js render  <file.rev> --screen n [--panel 7|12] [--out screen.svg]
+node rev-cli.js render  <file.rev> --screen n [--panel 7|12] [--out screen.svg] [--firmware-images <dir>]
 ```
 
 `screens` and `widgets` print JSON (type name, named properties `props`, boxes,
@@ -174,7 +187,14 @@ panel boxes, overlaps, out-of-bounds); `render` prints an SVG with the same pane
 boxes and paint order as the preview. An MCP tool can run it as a subprocess and
 read stdout (for example `node <extension>/dist/rev-cli.js widgets main.rev
 --screen 2`). PNG is not produced (it needs a rasterizer dependency); convert
-the SVG with any tool, for example a browser or `rsvg-convert`.
+the SVG with any tool, for example a browser or `rsvg-convert`. The optional
+firmware directory is either the `firmware-images` cache root or a specific
+version directory. An explicitly supplied directory must contain a usable image
+cache or render fails. Missing images in a usable cache remain placeholders.
+Rendered built-ins use absolute `file:` URIs, not copies;
+viewers may restrict local file access and the SVG is not portable without the
+cache. Generated project documentation uses the selected cache's 7-inch variant
+in the same way; regenerate it after importing.
 
 ### Database diagram (ERD)
 

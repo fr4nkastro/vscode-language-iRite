@@ -66,6 +66,27 @@ describe("editor page", () => {
 	});
 });
 
+describe("firmware images in the editor", () => {
+	it("renders panel-specific built-in canvas images and a numbered gallery alongside project images", () => {
+		const image = { ...view.screens[0].widgets[0], type: 7, typeName: "image" as const, image: "local://2.png" };
+		const model = { ...view, screens: [{ ...view.screens[0], widgets: [image] }] };
+		const out = renderEditorHtml(model, { ...opts, builtinUri: (id, panel) => id === "2.png" ? `web:${panel}` : undefined, gallery: { builtin: [{ n: 2, value: "local://2.png", width: 10, height: 20, uri7: "web:7", uri12: "web:12" }], files: [{ value: "a.png", uri: "web:a" }] } });
+		expect(out).toContain('src="web:7"');
+		expect(out).toContain('web:12');
+		expect(out).toContain('local://2.png');
+		expect(out).toContain('web:a');
+		expect(out).toContain("def.type === 7");
+		expect(out).toContain("sendProp(id, f,");
+	});
+	it("preserves the missing image placeholder and exact import hint without a cache", () => {
+		const image = { ...view.screens[0].widgets[0], type: 7, typeName: "image" as const, image: "local://999.png" };
+		const out = renderEditorHtml({ ...view, screens: [{ ...view.screens[0], widgets: [image] }] }, opts);
+		expect(out).toContain('class="w placeholder"');
+		expect(out).toContain("local://999.png");
+		expect(out).toContain("Import the built-in images from the 1280 firmware");
+	});
+});
+
 describe("editor page: palette, inspector, hint", () => {
 	it("lists every non-legacy widget type as a draggable palette item, and says why type 5 is missing", () => {
 		const types = [...html.matchAll(/<button type="button" draggable="true" data-wtype="(\d+)"/g)].map((m) => Number(m[1]));
