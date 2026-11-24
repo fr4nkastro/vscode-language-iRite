@@ -1,7 +1,7 @@
 /**
- * Read-only reader for Rice Lake Revolution `.rev` files (1280 model).
- * Pure module: no `vscode` import. There is deliberately no writer (the
- * extension never modifies `.rev`; Revolution keeps integrity hashes).
+ * Reader for Rice Lake Revolution `.rev` files (1280 model).
+ * Pure module: no `vscode` import. This file only reads; the single, opt-in
+ * write path (widget x/y/width/height) lives in `./serialize` and is lossless.
  */
 
 export interface RevHeader {

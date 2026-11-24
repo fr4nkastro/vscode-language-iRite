@@ -107,6 +107,52 @@ Limitations:
     so they are read from the code convention above and screens are always
     identified by number too.
 
+### Screen editor (opt-in, writes the `.rev`)
+
+Right-click a `.rev` and choose **iRite: Edit Screens** (or "Open With..." >
+"iRite: Edit Screens"). It is never the default editor of `.rev` files.
+
+-   Drag a widget, use the arrow keys (1 px; **Shift**: one grid step), drag the
+    resize handles, or type x / y / w / h. **Snap** and the grid size
+    (`irite.editor.snap`, `irite.editor.gridSize`) are in the toolbar.
+    Scale (type 1) and symbol (type 6) widgets store no size: only x and y.
+    Full-screen backdrops are not draggable on the canvas (use the fields or
+    the arrow keys) so they are not moved by accident.
+-   Everything is edited in 7" pixels. On the 12" view the pointer movement is
+    converted back to 7" pixels.
+-   Undo, redo, the dirty marker, save and revert are the standard VS Code ones.
+-   Saving rewrites **only** the x, y, width and height of the edited `WDGT#n`
+    lines: BOM, CRLF, key order, widget ids, line order and every other byte are
+    kept, so the diff is one line per edited widget. Saving without edits does
+    not touch the file.
+-   Z-order buttons (front, back, one step) and hide/show are **view only** and
+    are not saved: Revolution paints in widget id order and the ids are the
+    constants of the generated `main.iri`, so they are never renumbered.
+-   **Integrity hash:** `ConfigHash` is not recomputed (its algorithm could not
+    be reproduced) and the result has not been verified in Revolution or on a
+    1280. The first save of a session asks you to confirm and copies the file to
+    `main.rev.bak` (a timestamped name when that exists) first. Open the saved
+    file in Revolution before loading it on an indicator, and keep the backup
+    until you have. Restore with: copy the `.bak` over the `.rev`.
+-   A save is refused when the file changed on disk since it was opened.
+
+#### Headless CLI (for agents and scripts)
+
+`dist/rev-cli.js` (bundled with the extension, no dependencies, read-only):
+
+```
+node rev-cli.js screens <file.rev>
+node rev-cli.js widgets <file.rev> [--screen n] [--panel 7|12]
+node rev-cli.js render  <file.rev> --screen n [--panel 7|12] [--out screen.svg]
+```
+
+`screens` and `widgets` print JSON (boxes, panel boxes, overlaps,
+out-of-bounds); `render` prints an SVG with the same panel geometry, widget
+boxes and paint order as the preview. An MCP tool can run it as a subprocess and
+read stdout (for example `node <extension>/dist/rev-cli.js widgets main.rev
+--screen 2`). PNG is not produced (it needs a rasterizer dependency); convert
+the SVG with any tool, for example a browser or `rsvg-convert`.
+
 ### Database diagram (ERD)
 
 Run **iRite: Show Database Diagram** from the Command Palette. The extension

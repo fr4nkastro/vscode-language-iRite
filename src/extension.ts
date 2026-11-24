@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { checkRevolutionInstalled, registerEngineCommands } from "./commands/engine";
 import { registerPreviewCommands } from "./commands/previewScreens";
+import { registerScreenEditor } from "./commands/screenEditor";
 import { registerErdCommands } from "./commands/erd";
 import { registerSfcCommands } from "./commands/sfc";
 import { registerCallMapCommands } from "./commands/callMap";
@@ -14,6 +15,7 @@ export function activate(context: vscode.ExtensionContext): void {
   checkRevolutionInstalled();
   registerEngineCommands(context, channel);
   registerPreviewCommands(context);
+  registerScreenEditor(context);
   registerErdCommands(context);
   registerSfcCommands(context);
   registerCallMapCommands(context);

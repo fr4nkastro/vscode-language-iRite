@@ -47,7 +47,7 @@ function color(c: string | undefined, fallback: string): string {
 	return /^#[0-9a-fA-F]{3,8}$/.test(v) || /^[A-Za-z]{3,20}$/.test(v) ? v : fallback;
 }
 
-function renderWidget(w: WidgetView, opts: RenderOptions): string {
+export function renderWidget(w: WidgetView, opts: RenderOptions): string {
 	const x = px(w.x, 0);
 	const y = px(w.y, 0);
 	let width = w.width;
@@ -118,6 +118,18 @@ function renderWidget(w: WidgetView, opts: RenderOptions): string {
 	return tag === "img" ? `${open}>` : `${open}>${inner}</${tag}>`;
 }
 
+/** Visual rules of the widget boxes, shared by the preview and the editor so both paint identically. */
+export const WIDGET_STYLE = `
+.w{position:absolute;box-sizing:border-box;overflow:hidden;cursor:pointer;}
+.label{white-space:nowrap;text-overflow:ellipsis;}
+.line{min-height:1px;}
+.scale{display:flex;align-items:center;justify-content:center;font-family:monospace;}
+.bargraph{border:2px solid #000;}
+.symbol{border:2px solid #888;border-radius:50%;}
+.placeholder{border:1px dashed #888;background:#eee;color:#555;font-size:11px;word-break:break-all;}
+.unknown{background:repeating-linear-gradient(45deg,#ccc,#ccc 4px,#eee 4px,#eee 8px);border:1px solid #999;}
+`;
+
 const STYLE = `
 body{margin:0;padding:8px;font-family:var(--vscode-font-family,sans-serif);color:var(--vscode-foreground);}
 #bar{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:8px;}
@@ -133,16 +145,9 @@ body.single .screen.sel{display:block;}
 .content{position:absolute;left:0;top:0;width:${CANVAS_WIDTH}px;height:${CANVAS_HEIGHT}px;transform-origin:0 0;}
 .band{position:absolute;left:0;display:none;background:repeating-linear-gradient(45deg,#e8e8e8,#e8e8e8 6px,#f6f6f6 6px,#f6f6f6 12px);border-top:1px dashed #999;box-sizing:border-box;}
 #panels{display:inline-flex;gap:4px;margin-left:8px;}
-.w{position:absolute;box-sizing:border-box;overflow:hidden;cursor:pointer;}
+${WIDGET_STYLE}
 .ovl{position:absolute;box-sizing:border-box;pointer-events:none;display:none;outline:2px solid #e91e63;z-index:1000000;}
 .ovl.hov{outline-style:dashed;outline-width:1px;}
-.label{white-space:nowrap;text-overflow:ellipsis;}
-.line{min-height:1px;}
-.scale{display:flex;align-items:center;justify-content:center;font-family:monospace;}
-.bargraph{border:2px solid #000;}
-.symbol{border:2px solid #888;border-radius:50%;}
-.placeholder{border:1px dashed #888;background:#eee;color:#555;font-size:11px;word-break:break-all;}
-.unknown{background:repeating-linear-gradient(45deg,#ccc,#ccc 4px,#eee 4px,#eee 8px);border:1px solid #999;}
 .entry{margin:0 0 6px;font-size:12px;}
 .entry a,.insp a{color:var(--vscode-textLink-foreground);cursor:pointer;}
 .muted{opacity:.7;}

@@ -50,6 +50,18 @@
 				"configuration": "./irite.configuration.json"
 			}
 		],
+		"customEditors": [
+			{
+				"viewType": "irite.screenEditor",
+				"displayName": "iRite: Edit Screens",
+				"selector": [
+					{
+						"filenamePattern": "*.rev"
+					}
+				],
+				"priority": "option"
+			}
+		],
 		"keybindings": [
 			{
 				"command": "irite.build",
@@ -80,12 +92,22 @@
 					"when": "resourceExtname =~ /\\.rev$/i",
 					"command": "irite.previewScreens",
 					"group": "navigation"
+				},
+				{
+					"when": "resourceExtname =~ /\\.rev$/i",
+					"command": "irite.editScreens",
+					"group": "navigation"
 				}
 			],
 			"explorer/context": [
 				{
 					"when": "resourceExtname =~ /\\.rev$/i",
 					"command": "irite.previewScreens",
+					"group": "navigation"
+				},
+				{
+					"when": "resourceExtname =~ /\\.rev$/i",
+					"command": "irite.editScreens",
 					"group": "navigation"
 				}
 			]
@@ -118,6 +140,11 @@
 				"command": "irite.previewScreens",
 				"title": "iRite: Preview Screens",
 				"description": "Preview the 1280 screens of a Revolution .rev file (read-only)"
+			},
+			{
+				"command": "irite.editScreens",
+				"title": "iRite: Edit Screens",
+				"description": "Opt-in editor for the 1280 screens: move and resize widgets and save x/y/width/height back into the .rev (a backup is written first)"
 			},
 			{
 				"command": "irite.showErd",
@@ -209,6 +236,18 @@
 					"type": "string",
 					"default": ".irite/db-pending.json",
 					"description": "Project-relative file written by 'iRite: Export Pending DB Routines (JSON)'."
+				},
+				"irite.editor.snap": {
+					"type": "boolean",
+					"default": true,
+					"description": "Screen editor: snap dragged and resized widgets to the grid (can be toggled in the editor)."
+				},
+				"irite.editor.gridSize": {
+					"type": "integer",
+					"default": 8,
+					"minimum": 1,
+					"maximum": 200,
+					"description": "Screen editor: grid size in 7 inch pixels used by snap and by Shift+arrow."
 				},
 				"irite.sfc.statesEnum": {
 					"type": "string",

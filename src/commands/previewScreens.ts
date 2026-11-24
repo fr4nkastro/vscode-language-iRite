@@ -23,7 +23,7 @@ function readText(p: string): string | undefined {
   }
 }
 
-async function locateRev(arg: unknown): Promise<string | undefined> {
+export async function locateRev(arg: unknown): Promise<string | undefined> {
   if (arg instanceof vscode.Uri && arg.scheme === "file" && /\.rev$/i.test(arg.fsPath)) {
     return arg.fsPath;
   }
