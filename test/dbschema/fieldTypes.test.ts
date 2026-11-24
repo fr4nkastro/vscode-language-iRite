@@ -5,7 +5,8 @@ import { dbIriHint } from '../../src/dbschema/iriHint';
 import { planDbSave } from '../../src/dbschema/save';
 import { buildErd } from '../../src/erd/erdModel';
 import { renderErdHtml } from '../../src/erd/erdHtml';
-import { renderErdEditState } from '../../src/erd/erdEdit';
+import { ErdDraft } from '../../src/erd/erdDraft';
+import { renderErdDraft } from '../../src/erd/erdDraftHtml';
 import { erdToMermaid } from '../../src/erd/erdMermaid';
 import { renderDbHtml } from '../../src/dbschema/webview';
 import { editableFieldType, fieldType, iriteFieldType } from '../../src/dbschema/fieldTypes';
@@ -85,23 +86,25 @@ describe('designer database field types', () => {
   const draft = model();
   draft.tables[0].name = '<img src=x onerror="x">';
   draft.tables[0].fields[0].name = '\"><script>alert(1)</script>&';
-  const editor = renderErdEditState(draft, {hint:'<script>hint</script>'});
+  const editor = renderErdDraft(new ErdDraft(draft).view());
   const legacy = renderDbHtml(draft, 'abc', '<script>hint</script>');
-  for (const html of [editor.diagram + editor.feedback, legacy]) {
+  for (const html of [editor, legacy]) {
    expect(html).not.toContain('<img src=x');
    expect(html).not.toContain('<script>alert(1)</script>');
    expect(html).not.toContain('<script>hint</script>');
    expect(html).toContain('&lt;img src=x onerror=&quot;x&quot;&gt;');
    expect(html).toContain('&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;');
-   expect(html).toContain('&lt;script&gt;hint&lt;/script&gt;');
   }
+  // The draft fragment has no hint; the separate legacy surface still renders it.
+  expect(legacy).toContain('&lt;script&gt;hint&lt;/script&gt;');
  });
  it('shows named types in editable and read-only views and Mermaid while escaping', () => {
-  const edit = renderErdEditState(model());
-  expect(edit.diagram).toContain('Long Integer');
-  expect(edit.diagram).toContain('Double Precision Real');
-  expect(edit.diagram).toContain('DateTime');
-  expect(edit.diagram).toContain('None (raw type 0');
+  const edit = renderErdDraft(new ErdDraft(model()).view());
+  expect(edit).toContain('Long Integer');
+  expect(edit).toContain('Double Precision Real');
+  expect(edit).toContain('DateTime');
+  expect(edit).toContain('Unknown (0)');
+  expect(edit).toContain('Unknown (99)');
   const legacy = renderDbHtml(model(), 'abc', '<hint>');
   expect(legacy).toContain('Double Precision Real');
   expect(legacy).toContain('None (raw type 0)');

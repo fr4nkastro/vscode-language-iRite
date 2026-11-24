@@ -1,9 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import { ErdDraft } from '../../src/erd/erdDraft';
 import type { DbSchema } from '../../src/dbschema/model';
+import { renderErdDraft } from '../../src/erd/erdDraftHtml';
 
 const base = (): DbSchema => ({reservedIndexes:[1], tables:[{index:1,sourceIndex:1,originalName:'Orders',originalMaxRecords:10,originalFieldCount:2,name:'Orders',maxRecords:10,fields:[{name:'Id',typeCode:3,typeName:'integer',size:4,source:{tableIndex:1,fieldIndex:0},originalName:'Id',originalTypeCode:3,originalSize:4},{name:'Text',typeCode:7,typeName:'string',size:20,source:{tableIndex:1,fieldIndex:1},originalName:'Text',originalTypeCode:7,originalSize:20}]}]});
 describe('ErdDraft', () => {
+ it('shows total records without an unsupported global limit', () => {
+  const html = renderErdDraft(new ErdDraft(base()).view());
+  expect(html).toContain('Total records: 10');
+  expect(html).not.toContain('256000000');
+  expect(html).toContain('Tables: 1 / 128');
+  expect(html).toContain('Total bytes: 240 / 460000000');
+ });
  it('tracks stable keys, deletion, restore, reorder and undo', () => {
   const d = new ErdDraft(base()); const t = d.view().tables[0]; const [a,b] = t.fields;
   expect(d.view().count).toBe(0);

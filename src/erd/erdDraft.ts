@@ -1,5 +1,6 @@
 import { DbSchema, DbTable, DbField, editDbSchema, validateDbSchema } from '../dbschema/model';
 import { editableFieldType } from '../dbschema/fieldTypes';
+import { DESIGNER_BYTES_THRESHOLD } from '../dbschema/limits';
 
 type Key = string;
 type FieldRow = { key: Key; field: DbField; original?: DbField; ordinal?: number; name: string; size: string; removed: boolean; added: boolean };
@@ -84,6 +85,6 @@ export class ErdDraft {
   });
   let count=0;
   for (const t of tables) { if (t.added || t.removed) { count++; continue; } if (t.propertiesDirty) count++; count+=t.fields.filter(f=>f.added||f.removed||f.dirty||f.reordered).length; }
-  return {tables,issues,count,budget:{tables:schema.tables.length,records,bytes,threshold:460000000,overThreshold:bytes!==undefined && bytes>460000000},schema};
+  return {tables,issues,count,budget:{tables:schema.tables.length,records,bytes,threshold:DESIGNER_BYTES_THRESHOLD,overThreshold:bytes!==undefined && bytes>DESIGNER_BYTES_THRESHOLD},schema};
  }
 }
