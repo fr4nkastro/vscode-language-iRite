@@ -62,8 +62,20 @@ describe("tarReader", () => {
 		expect(r.map((x) => [x.e.name, x.e.size])).toEqual([["one", 1300], ["two", 0], ["three", 1]]);
 	});
 
-	it("stops at the end-of-archive blocks, and accepts EOF without them", async () => {
-		expect(await collect(buildTar([{ name: "a", body: "1" }], { terminator: false }))).toHaveLength(1);
+	it("rejects an archive that ends at EOF between entries (no end-of-archive marker)", async () => {
+		const cut = buildTar([{ name: "a", body: "1" }, { name: "b", body: "2" }], { terminator: false });
+		await expect(collect(cut)).rejects.toThrow(TarError);
+		await expect(collect(cut)).rejects.toThrow(/end-of-archive/i);
+		await expect(collect(Buffer.alloc(0))).rejects.toThrow(/end-of-archive/i);
+	});
+
+	it("accepts one zero block as the end marker (GNU tar tolerates it) and the standard two", async () => {
+		const one = Buffer.concat([buildTar([{ name: "a", body: "1" }], { terminator: false }), Buffer.alloc(512)]);
+		expect(await collect(one)).toHaveLength(1);
+		expect(await collect(buildTar([{ name: "a", body: "1" }]))).toHaveLength(1);
+	});
+
+	it("stops at the end-of-archive blocks, ignoring what follows", async () => {
 		const withTrailer = Buffer.concat([buildTar([{ name: "a", body: "1" }]), Buffer.alloc(512, 1)]);
 		expect(await collect(withTrailer)).toHaveLength(1);
 	});

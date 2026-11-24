@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -109,5 +109,26 @@ describe("importFirmwareImages", () => {
 		const again = await importFirmwareImages({ source: v1b, storageDir: storage() });
 		expect(again.counts).toEqual(r.counts);
 		expect(readdirSync(fi).sort()).toEqual(["1.0.0", "2.0.0"]);
+	});
+
+	it("keeps the previous cache and leaves no temp dir when a re-import archive has no end-of-archive marker", async () => {
+		const good = updateFolder("good", items(), "image_version=3.0.0\n");
+		await importFirmwareImages({ source: good, storageDir: storage() });
+		const fi = join(storage(), "firmware-images");
+		const snap = () => {
+			const d = join(fi, "3.0.0");
+			return readdirSync(d, { recursive: true, withFileTypes: false }).map(String).sort().map((f) => {
+				const p = join(d, f);
+				return [f, statSync(p).isFile() ? readFileSync(p).toString("base64") : "dir"];
+			});
+		};
+		const before = snap();
+		const dir = join(tmp, "cut");
+		mkdirSync(dir);
+		writeFileSync(join(dir, "rootfs.tar"), buildTar([{ name: imgPath("default", 9), body: makePng(5, 5) }], { terminator: false }));
+		writeFileSync(join(dir, "manifest.txt"), "image_version=3.0.0\n");
+		await expect(importFirmwareImages({ source: dir, storageDir: storage() })).rejects.toThrow(/end-of-archive/i);
+		expect(snap()).toEqual(before);
+		expect(readdirSync(fi)).toEqual(["3.0.0"]);
 	});
 });

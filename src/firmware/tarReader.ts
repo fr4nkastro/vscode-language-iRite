@@ -13,11 +13,17 @@
  * largest body the caller chooses to read.
  *
  * Supported: ustar (prefix + name), pax `x` (path, size; other keys ignored),
- * pax `g` (skipped), GNU `L` long names (`K` skipped), end of archive by two
- * zero blocks or plain EOF. Header checksum is validated; a bad checksum, a
+ * pax `g` (skipped), GNU `L` long names (`K` skipped). Header checksum is validated; a bad checksum, a
  * truncated header/body, or a non-octal size raise TarError. The typeflag is
  * returned raw ("0", "\0", "5", ...). Names are returned as stored (e.g.
  * "./var/node/..."): validation is the caller's job (see imageEntries.ts).
+ *
+ * Completeness (issue S11): an archive is complete only if an end-of-archive
+ * marker (a zero block) is read where a header is expected. EOF exactly
+ * between entries, or an empty stream, could be a truncated copy, so it raises
+ * TarError and the importer keeps the previous cache. Decision: ONE zero block
+ * is accepted (GNU tar reads it with a warning; the standard marker is two);
+ * bytes after the first zero block are ignored.
  */
 import { createReadStream } from "node:fs";
 import type { Readable } from "node:stream";
@@ -187,7 +193,7 @@ async function run(reader: ChunkReader, onEntry: (entry: TarEntry) => void | Pro
 
 	for (;;) {
 		const h = await reader.read(BLOCK);
-		if (h.length === 0) return;
+		if (h.length === 0) throw new TarError("Incomplete tar archive: ended without an end-of-archive marker (zero block), possibly truncated between entries");
 		if (h.length < BLOCK) throw new TarError(`Truncated tar archive: header block has ${h.length} of ${BLOCK} bytes`);
 		if (h.every((b) => b === 0)) return;
 		if (!checksumOk(h)) throw new TarError("Invalid tar header checksum");
