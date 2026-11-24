@@ -23,6 +23,24 @@ S9 Pure logic tested with vitest (pending-change diff, reorder, budget totals, v
 
 S10 TDD (RED then GREEN); focused checks while iterating; at the end `npm run typecheck`, `npm test`, `npm run compile` once via a foreground gentle-ai-worker. Optionally render the webview HTML headless (Playwright/Chromium if available) for screenshots saved in scratch, list their paths. Conventional Commits with `git -c user.name="Allan Castro" -c user.email=it@ipesah.com`, no co-author lines. Do not delete scratch (list paths). Do not start a native review (Claude handles it). If a guarded command is refused, stop and report it. Finish everything in the foreground.
 
+S11 — Limits, legacy renderer and validator:
+- Limits (R2-unexplained-records-cap, R2-duplicated-threshold): one named, documented constant module (e.g. src/dbschema/limits.ts) for 128 tables, 100 fields, 2,000,000 records, 255 string max, 460,000,000-byte designer threshold, with the [IL]/[REA] source in a comment; validation, draft budget and HTML all import it. The total-records meter must state its basis (or drop the derived 256,000,000 cap if no Revolution rule names it; show the plain total instead).
+- R2-legacy-dead-renderer: remove the legacy renderer from src if only tests use it, migrating or deleting those tests with justification; otherwise make it delegate to the shared rules.
+- R2-ambient-issue-location: refactor validateDbSchema to pass location explicitly per issue (no mutable closure state); behaviour and messages unchanged; tests stay green.
+
+S12 — Move behavior and harness:
+- R2-duplicated-vm-harness: use the shared test/erd/draftVmHarness.ts everywhere.
+- R2-misleading-move-error + R3-move-guard-untested: separate error messages for missing field / out-of-range / unknown-type span; disable move/drag in the webview for unknown-type rows; tests for each.
+- The session-level moveField guard repeats the bounds check that ErdDraft.apply already performs. It also reports every failure, including a missing field or an out-of-range index, as 'Cannot move unknown type code field', which misdescribes the cause. Separately, the view and hasChanges getters rebuild and revalidate the entire draft on every access, which a getter name does not suggest.
+
+S13 — Watcher and CSP:
+- R3-cancel-refresh: restore the deferred watcher refresh after a cancelled save as the baseline did (without dropping the pending draft); test it.
+- R3-csp-style-coverage: extend the no-inline-style test to a populated read-only ERD and the navigation script, fixing any violations.
+
+S14 — Delivery:
+- Add a task and Log entry (keep L1) and commit the doc with git add -f. No absolute local paths in the doc.
+- Same constraints as before: TDD, focused checks then npm run typecheck, npm test, npm run compile once at the end via a foreground gentle-ai-worker; Conventional Commits with git -c user.name="Allan Castro" -c user.email=it@ipesah.com, no co-author lines; no push/PR/merge; no native review; do not delete scratch (list as <scratch> placeholders); finish in the foreground.
+
 ## Tasks
 - [x] T1 — S8, S10 — Foreground worker: document the S8 fallback after inconclusive REA inspection — `a34410d`.
 - [x] T4 — S2–S6, S9–S10 — Foreground worker: pure draft, validation locations and estimates — `b81b132`.
@@ -30,6 +48,8 @@ S10 TDD (RED then GREEN); focused checks while iterating; at the end `npm run ty
 - [x] T6 — S2, S4, S7, S9–S10 — Foreground worker: trusted host action protocol and save integration — `30953fe`.
 - [x] T2 — S1–S7, S9, S10 — Foreground worker: webview event integration and interaction checks — `30953fe`.
 - [x] T3 — S1–S10 — Independent high-risk verification and foreground worker final checks — tested `30953fe`; evidence in this tracking commit.
+
+- [x] T7 — S11–S14 — Resolve the approved review's non-blocking findings via bounded foreground workers; independent verification for named risk items; foreground final checks — `0779301`, `4630357`, `42cf916`; evidence in this tracking commit.
 
 ## Log
 L1: Delega a gentle-shell con gpt la mejora de la visualización del editor de db de la extensión
@@ -44,3 +64,8 @@ L9: Browser and watcher fixtures migrated without removing safety assertions; le
 L10: Base/current validator differential: 17 fixture groups matched on exit status, stdout and stderr. First scratch run could not resolve the Bash path; the corrected Windows path worked.
 L11: Independent verification on `30953fe`: committed diff check passed; 19 files / 101 focused tests passed and an isolated deletion/reorder probe preserved untouched field tokens and rejected injected provenance. S1–S7 and S9 met at repository-test scope; S8 met by fallback. A supplemental race probe did not run because its scratch path was unavailable in the continuation. No browser, Revolution, or device verification.
 L12: Foreground final checks on `30953fe`: `npm run typecheck` exit 0; `npm test` exit 0 (64 files, 652 passed, 7 skipped); `npm run compile` exit 0. No native review started. The read-only native assessment lacked an intended-untracked declaration; independent risk verification proceeded separately.
+L13: Resolve the non-blocking findings from the approved native review of feature odd/tasks/db-editor-redesign.md (branch feat/db-editor-redesign, this cwd). Add a task and Log entry (keep L1) and commit the doc with git add -f. No absolute local paths in the doc.
+L14: Delivery: feature-branch-chain. Risk item 3 (shared validator and draft helpers); item 4 (watcher/save interleaving). CSP enforcement code was unchanged. No native review.
+L15: Focused RED/GREEN: limits 1 failed then 49 passed; renderer-assertion migration 13 passed; move and VM 5 failed then 68 passed; watcher 1 failed then 69 passed after removing an unused confirmation mock that leaked across tests. Populated CSP checks passed without production CSP changes.
+L16: Independent verification on `42cf916`: diff check passed; 108 focused tests passed; seven validator fixture groups matched baseline and the delayed-message watcher probe passed. The implementation-worker differential also matched baseline for 15 fixture groups across existing callers. Retained paths: `<scratch:validator-differential>`, `<scratch:verifier-preparation>`, `<scratch:verifier-probes>`. No real browser, Revolution, or device checks.
+L17: Foreground final checks on `42cf916`, once each: `npm run typecheck` exit 0; `npm test` exit 0 (64 files, 659 passed, 7 skipped); `npm run compile` exit 0. Compile outputs remain ignored. No push, PR, merge, or native review.
