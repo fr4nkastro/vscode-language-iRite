@@ -23,6 +23,16 @@ describe("database schema model", () => {
    expect(validateDbSchema(m, base).errors.some(e => /128/.test(e))).toBe(n > 128);
   }
  });
+ it('emits structured locations without changing legacy diagnostics', () => {
+  let m = createDbSchema(rev());
+  m = editDbSchema(m, {kind:'addField',table:2,name:'A',typeCode:7,size:256});
+  const issues: import('../../src/dbschema/model').DbSchemaIssue[] = [];
+  const detailed=validateDbSchema(m, undefined, issue=>issues.push(issue));
+  expect(detailed).toEqual(validateDbSchema(m));
+  expect(issues.filter(i=>i.severity==='error').map(i=>i.message)).toEqual(detailed.errors);
+  expect(issues.filter(i=>i.severity==='warning').map(i=>i.message)).toEqual(detailed.warnings);
+  expect(issues.filter(i=>i.field===2 && i.severity==='error').map(i=>i.property)).toEqual(['name','size']);
+ });
  it("maps observed type 1 on read and after type edits", () => {
   const parsed = createDbSchema(parseRev('<Indicator><Config>\nDB.SCHEMA#1=1,0,Weight,1,1\nDB.ALIAS#1=Weights\n</Config></Indicator>'));
   expect(parsed.tables[0].fields[0].typeName).toBe('integer');
