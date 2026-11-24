@@ -57,8 +57,11 @@ it('refreshes a clean read-only ERD with a rev when the watcher fires', async ()
  await panel.receive({type:'erd-edit-mode', generation, editing:true});
  await setName(panel, generation, 1, 'Changed');
  await panel.receive({type:'erd-edit-mode', generation, editing:false});
- expect(panel.webview.html).toBe(refreshed); // staged edit survives leaving edit mode
+ expect(panel.webview.html).not.toBe(refreshed); // deferred refresh retains the staged edit
+ refreshed = panel.webview.html;
+ generation = Number(refreshed.match(/const generation = (\d+)/)[1]);
  await panel.receive({type:'erd-edit-mode', generation, editing:true});
+ expect(panel.webview.postMessage.mock.calls.at(-1)[0].draft.tables[0].name).toBe('Changed');
  let finish!: (result: string | undefined) => void;
  const vscode = await import('vscode');
  vi.mocked(vscode.window.showWarningMessage).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }) as any);
@@ -67,8 +70,22 @@ it('refreshes a clean read-only ERD with a rev when the watcher fires', async ()
  expect(panel.webview.html).toBe(refreshed); // modal save in flight
  finish(undefined); await saving;
  expect(panel.webview.html).toBe(refreshed); // cancelled save preserves the draft while editing
+ mocks.disk = Buffer.from(mocks.disk.toString().replace('DB.ALIAS#1=T', 'DB.ALIAS#1=Disk'));
  await panel.receive({type:'erd-edit-mode', generation, editing:false});
- expect(panel.webview.html).toBe(refreshed); // cancelled save must retain the pending draft
+ expect(panel.webview.html).not.toBe(refreshed);
+ expect(panel.webview.html).toContain('Disk');
+ generation = Number(panel.webview.html.match(/const generation = (\d+)/)[1]);
+ await panel.receive({type:'erd-edit-mode', generation, editing:true});
+ expect(panel.webview.postMessage.mock.calls.at(-1)[0].draft.tables[0].name).toBe('Changed');
+ await panel.receive({type:'erd-edit-request', generation, requestId:3, message:{type:'save'}});
+ expect(panel.webview.postMessage.mock.calls.at(-1)[0].message).toMatch(/changed|stale/i);
+ expect(mocks.writes).toEqual([]);
+ await panel.receive({type:'erd-edit-request', generation, requestId:4, message:{type:'draft-discard'}});
+ await panel.receive({type:'erd-edit-mode', generation, editing:false});
+ expect(panel.webview.html).toContain('Disk');
+ generation = Number(panel.webview.html.match(/const generation = (\d+)/)[1]);
+ await panel.receive({type:'erd-edit-mode', generation, editing:true});
+ expect(panel.webview.postMessage.mock.calls.at(-1)[0].draft.tables[0].name).toBe('Disk');
 });
 
 it.each([['z.rev', 'a.rev'], ['main.rev', 'MAIN.REV']])('keeps ambiguous targets %s and %s readable but not writable', async (first, second) => {

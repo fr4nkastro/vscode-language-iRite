@@ -36,6 +36,7 @@ class ErdPanel {
  private generation = 0;
  private staged = false;
  private refreshPending = false;
+ private refreshedWithDraft = false;
  private aliasPending = false;
  private recoveryMessage: string | undefined;
 
@@ -79,9 +80,11 @@ class ErdPanel {
   ErdPanel.panels.set(key, new ErdPanel(panel, mainSrc, editing));
  }
  private refreshIfSafe(): void {
-  if (!this.refreshPending || this.disposed || this.staged || this.aliasPending || this.session?.editing || this.session?.busy || this.session?.unusable) return;
+  if (this.disposed || this.aliasPending || this.session?.editing || this.session?.busy || this.session?.unusable) return;
+  if (!this.refreshPending && !(this.refreshedWithDraft && !this.staged)) return;
   this.refreshPending = false;
-  this.render(false);
+  this.refreshedWithDraft = this.staged;
+  this.render(false, this.staged);
  }
  private selectedTarget(): { readable?: string; writable?: string; ambiguous: boolean } {
   const dir = path.dirname(this.mainSrc);
@@ -90,7 +93,7 @@ class ErdPanel {
   const writable = preferred.length === 1 ? preferred[0] : preferred.length === 0 && names.length === 1 ? names[0] : undefined;
   return { readable: names[0] ? path.join(dir, names[0]) : undefined, writable: writable ? path.join(dir, writable) : undefined, ambiguous: names.length > 0 && !writable };
  }
- private render(editing: boolean): void {
+ private render(editing: boolean, preserveSession = false): void {
   this.generation++;
   try {
    const dir = path.dirname(this.mainSrc);
@@ -100,8 +103,8 @@ class ErdPanel {
    let bytes: Buffer | undefined;
    try { bytes = this.target ? fs.readFileSync(this.target) : undefined; } catch { /* Keep the source-only reader available. */ }
    const rev = bytes ? parseRev(bytes.toString('utf8')) : undefined;
-   this.session = undefined;
-   if (bytes && rev && this.target && selection.writable === this.target) {
+   if (!preserveSession) this.session = undefined;
+   if (!preserveSession && bytes && rev && this.target && selection.writable === this.target) {
     try {
      const target = this.target;
      const read = (): Buffer => {
