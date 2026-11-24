@@ -113,7 +113,14 @@ from the Petri state machine convention:
     Transitions emitted without a step guard are drawn in a "from any step"
     lane.
 -   Diagnostics flag unreachable steps and transitions without target or
-    never emitted.
+    never emitted. They are also published to the **Problems** panel
+    (source `iRite SFC`) while the diagram is open, with the file and line
+    when known; click one to open it. Severities: transition without target =
+    Error; unreachable step / transition never emitted / enum missing /
+    conflicting targets = Warning; step without entry routine = Information.
+    Entries without a location are attached to `main.src` line 1. The
+    entries are refreshed when the sources change and removed when the
+    diagram tab is closed.
 -   Click a step to open its entry routine, a transition to list the code
     that emits it.
 
@@ -121,7 +128,30 @@ Settings: `irite.sfc.statesEnum`, `irite.sfc.transitionsEnum` (enum names,
 default `STATES` / `TRANSITIONS`) and `irite.sfc.initialStep` (default: a step
 named Standby/Idle/Init, else the first one).
 
-Both diagrams are read-only and refresh when the sources or `.rev` change.
+#### Editing and saving the SFC layout
+
+The automatic layout can be refined by hand; the sources are never touched.
+
+-   **Drag** a step or a transition bar to move it. A step takes its outgoing
+    bars with it unless a bar was positioned by hand.
+-   **Bend points**: double-click (or Alt+click) a line to add one, drag it to
+    route the line, double-click or right-click it to remove it.
+-   Zoom (wheel) and pan (drag the background) work as before and are kept
+    when the diagram refreshes.
+-   The layout is saved automatically to `.vscode/irite-sfc.layout.json` in
+    the workspace folder of the project (next to `main.src` when there is no
+    workspace folder), keyed by step / transition name (case-insensitive), so
+    it survives reopening and can be committed. New steps or transitions use the
+    automatic layout; entries for names that no longer exist are ignored,
+    listed in the side panel and kept in the file until you reset.
+-   **Reset layout** (button in the side panel, or the command
+    **iRite: Reset SFC Layout**) deletes the saved layout of that diagram.
+-   If the layout file is invalid or written by a newer version, the diagram
+    shows the automatic layout, says so in the side panel and does not
+    overwrite the file.
+
+The ERD is read-only. Both diagrams refresh when the
+sources or `.rev` change.
 
 ### Database access routines (IPESAH standard)
 

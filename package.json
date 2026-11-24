@@ -130,6 +130,11 @@
 				"description": "Grafcet-style diagram of the STATES/TRANSITIONS state machine (read-only)"
 			},
 			{
+				"command": "irite.sfc.resetLayout",
+				"title": "iRite: Reset SFC Layout",
+				"description": "Delete the hand-made SFC layout of the project from .vscode/irite-sfc.layout.json and go back to the automatic layout"
+			},
+			{
 				"command": "irite.dbAccess.scaffold",
 				"title": "iRite: Scaffold DB Access Routines",
 				"description": "Append stubs (marked TODO(irite-db): pending implementation) for the missing standard DB access routines of each table"
