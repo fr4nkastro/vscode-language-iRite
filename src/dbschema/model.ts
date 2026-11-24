@@ -1,5 +1,7 @@
 import type { RevDbField, RevModel } from "../rev";
 import { editableFieldType } from './fieldTypes';
+import { MAX_TABLES, MAX_FIELDS, MAX_RECORDS, MAX_STRING_SIZE, MAX_NAME_LENGTH } from './limits';
+const NAME_PATTERN = new RegExp(`^[A-Za-z_][A-Za-z0-9_]{0,${MAX_NAME_LENGTH - 1}}$`);
 
 /** Original positions address the decoded DB.SCHEMA tokens, even after reorder. */
 export interface FieldSource { tableIndex: number; fieldIndex: number }
@@ -81,36 +83,43 @@ export function editDbSchema(model: DbSchema, edit: DbEdit): DbSchema {
  return result;
 }
 
-export function validateDbSchema(model: DbSchema, baseline?: DbSchema): { errors: string[]; warnings: string[] } {
+export interface DbSchemaIssue { severity: 'error' | 'warning'; message: string; table?: number; field?: number; property?: 'name' | 'maxRecords' | 'size' | 'typeCode' | 'fields' }
+export function validateDbSchema(model: DbSchema, baseline?: DbSchema, sink?: (issue: DbSchemaIssue) => void): { errors: string[]; warnings: string[] } {
  const errors: string[] = [];
- const warnings = ["Firmware enforcement, storage overhead and per-table memory limits are unconfirmed; validate in Revolution and on a test indicator before production."];
+ const warnings: string[] = [];
+ type Location = Pick<DbSchemaIssue, 'table' | 'field' | 'property'>;
+ const emit = (severity: DbSchemaIssue['severity'], message: string, location: Location = {}) => { (severity === 'error' ? errors : warnings).push(message); sink?.({severity, message, table: location.table, field: location.field, property: location.property}); };
+ emit('warning', "Firmware enforcement, storage overhead and per-table memory limits are unconfirmed; validate in Revolution and on a test indicator before production.");
  const names = new Set<string>();
- const identifier = (name: string, what: string, seen: Set<string>, unchanged: boolean) => {
-  if (!unchanged && (!/^[A-Za-z_][A-Za-z0-9_]{0,7}$/.test(name) || /[\r\n]/.test(name) || keywords.has(name.toLowerCase()))) errors.push(`${what}: invalid or missing iRite identifier (maximum 8 ASCII characters)`);
-  const key = name.toLowerCase(); if (seen.has(key)) errors.push(`${what}: duplicate name`); seen.add(key);
+ const identifier = (name: string, what: string, seen: Set<string>, unchanged: boolean, location: Location) => {
+  if (!unchanged && (!NAME_PATTERN.test(name) || /[\r\n]/.test(name) || keywords.has(name.toLowerCase()))) emit('error', `${what}: invalid or missing iRite identifier (maximum ${MAX_NAME_LENGTH} ASCII characters)`, location);
+  const key = name.toLowerCase(); if (seen.has(key)) emit('error', `${what}: duplicate name`, location); seen.add(key);
  };
- const positive = (n: number, what: string) => { if (!Number.isSafeInteger(n) || n <= 0) errors.push(`${what} must be a positive safe integer`); };
- if (model.tables.length > 128 && (model.tables.length > (baseline?.tables.length ?? model.originalTableCount ?? 0) || model.tables.some(t => t.sourceIndex === undefined))) errors.push('Database exceeds 128 tables');
- for (const t of model.tables) {
+ const positive = (n: number, what: string, location: Location) => { if (!Number.isSafeInteger(n) || n <= 0) emit('error', `${what} must be a positive safe integer`, location); };
+ if (model.tables.length > MAX_TABLES && (model.tables.length > (baseline?.tables.length ?? model.originalTableCount ?? 0) || model.tables.some(t => t.sourceIndex === undefined))) emit('error', 'Database exceeds 128 tables');
+ for (const [tablePosition, t] of model.tables.entries()) {
   const old = baseline && t.sourceIndex === t.index ? baseline.tables.find(table => table.index === t.index) : undefined;
   const oldName = baseline ? old?.name : t.sourceIndex === t.index ? t.originalName : undefined;
   const oldMax = baseline ? old?.maxRecords : t.sourceIndex === t.index ? t.originalMaxRecords : undefined;
-  identifier(t.name, `Table ${t.index}`, names, oldName !== undefined && t.name === oldName);
-  if (t.maxRecords !== oldMax) { positive(t.maxRecords, `Table ${t.name} max records`); if (t.maxRecords > 2000000) errors.push(`Table ${t.name} max records exceeds 2000000`); }
-  if (t.fields.length > 100 && (t.fields.length > (baseline ? old?.fields.length ?? 0 : t.originalFieldCount ?? 0) || t.fields.some(f => !f.source))) errors.push(`Table ${t.name} exceeds 100 fields`);
-  if (!t.fields.length) errors.push(`Table ${t.name} requires at least one field`);
+  identifier(t.name, `Table ${t.index}`, names, oldName !== undefined && t.name === oldName, {table: tablePosition, property: 'name'});
+  const recordsLocation: Location = {table: tablePosition, property: 'maxRecords'};
+  if (t.maxRecords !== oldMax) { positive(t.maxRecords, `Table ${t.name} max records`, recordsLocation); if (t.maxRecords > MAX_RECORDS) emit('error', `Table ${t.name} max records exceeds 2000000`, recordsLocation); }
+  const fieldsLocation: Location = {table: tablePosition, property: 'fields'};
+  if (t.fields.length > MAX_FIELDS && (t.fields.length > (baseline ? old?.fields.length ?? 0 : t.originalFieldCount ?? 0) || t.fields.some(f => !f.source))) emit('error', `Table ${t.name} exceeds 100 fields`, fieldsLocation);
+  if (!t.fields.length) emit('error', `Table ${t.name} requires at least one field`, fieldsLocation);
   const fields = new Set<string>();
-  for (const f of t.fields) {
+  for (const [fieldPosition, f] of t.fields.entries()) {
    const previous = baseline && old && f.source?.tableIndex === old.index ? old.fields[f.source.fieldIndex] : undefined;
    const oldFieldName = baseline ? previous?.name : f.source?.tableIndex === t.sourceIndex ? f.originalName : undefined;
-   identifier(f.name, `Field ${t.name}.${f.name}`, fields, oldFieldName !== undefined && f.name === oldFieldName);
+   identifier(f.name, `Field ${t.name}.${f.name}`, fields, oldFieldName !== undefined && f.name === oldFieldName, {table: tablePosition, field: fieldPosition, property: 'name'});
    const type = editableFieldType(f.typeCode);
    const untouched = f.source && f.typeCode === (baseline ? previous?.typeCode : f.originalTypeCode) && f.size === (baseline ? previous?.size : f.originalSize);
-   if (!type) warnings.push(`Field ${t.name}.${f.name}: unknown type code preserved`);
+   if (!type) emit('warning', `Field ${t.name}.${f.name}: unknown type code preserved`, {table: tablePosition, field: fieldPosition, property: 'typeCode'});
    else {
-    const valid = Number.isSafeInteger(f.size) && (type.variable ? f.size > 0 && f.size <= 255 : f.size === type.defaultSize);
-    if (!valid && !untouched) errors.push(`Field ${t.name}.${f.name} size ${type.variable ? 'must be a positive integer up to 255 (extension policy; designer maximum 255)' : `must be ${type.defaultSize}`}`);
-    if (!valid || (observed[f.typeCode] && !observed[f.typeCode].includes(f.size))) warnings.push(`Field ${t.name}.${f.name}: size combination is unconfirmed`);
+    const sizeLocation: Location = {table: tablePosition, field: fieldPosition, property: 'size'};
+    const valid = Number.isSafeInteger(f.size) && (type.variable ? f.size > 0 && f.size <= MAX_STRING_SIZE : f.size === type.defaultSize);
+    if (!valid && !untouched) emit('error', `Field ${t.name}.${f.name} size ${type.variable ? 'must be a positive integer up to 255 (extension policy; designer maximum 255)' : `must be ${type.defaultSize}`}`, sizeLocation);
+    if (!valid || (observed[f.typeCode] && !observed[f.typeCode].includes(f.size))) emit('warning', `Field ${t.name}.${f.name}: size combination is unconfirmed`, sizeLocation);
    }
   }
  }

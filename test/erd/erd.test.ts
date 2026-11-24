@@ -107,7 +107,8 @@ describe("renderErdHtml", () => {
 		expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
 		expect(html).toContain("script-src 'nonce-N0NCE'");
 		expect(html).toContain("default-src 'none'");
-		expect(html).toContain("style-src vscode-resource: 'unsafe-inline'");
+		expect(html).toContain("style-src 'nonce-N0NCE'");
+		expect(html).not.toContain("'unsafe-inline'");
 		expect(html).toContain('<script nonce="N0NCE">');
 		expect(html).toContain("typeof acquireVsCodeApi");
 		expect(html.match(/class="card"/g)).toHaveLength(2);

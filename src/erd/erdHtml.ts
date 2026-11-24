@@ -1,7 +1,11 @@
 /** Self-contained SVG ERD page (no external libs). Pure: no `vscode` imports. */
 import type { Erd, ErdTable } from "./erdModel";
 import type { DbSchema } from "../dbschema/model";
-import { renderErdEditState } from "./erdEdit";
+import { ErdDraft } from './erdDraft';
+import { renderErdDraft } from './erdDraftHtml';
+import { ERD_DRAFT_STYLE } from './erdDraftStyle';
+import { ERD_DRAFT_SCRIPT } from './erdDraftScript';
+import { plural } from './erdPlural';
 import { fieldType } from '../dbschema/fieldTypes';
 
 export interface ErdHtmlOptions {
@@ -118,66 +122,6 @@ svg.addEventListener('click', (e) => {
   const h = e.target.closest ? e.target.closest('.hdr[data-line]') : null;
   if (h) vscode.postMessage({ type: 'open', file: h.getAttribute('data-file'), line: Number(h.getAttribute('data-line')) });
 });
-const toggle = document.getElementById('edit-toggle');
-const readonlyView = document.getElementById('readonly-view'), editView = document.getElementById('edit-view');
-const feedback = document.getElementById('edit-feedback'), save = document.getElementById('edit-save');
-const generation = __ERD_GENERATION__;
-let pending = null, modePending = false, aliasPending = false, nextRequest = 0, focusSelector = null;
-const dirty = new Set();
-const notice = text => { document.getElementById('edit-notice').textContent = text; };
-const numberValue = input => input.value.trim() === '' ? null : Number(input.value);
-document.getElementById('edit-revert').addEventListener('click', () => {
- if (pending) return;
- dirty.forEach(input => { if (input.tagName === 'SELECT') { const selected = input.querySelector('option[selected]'); if (selected) input.value = selected.value; } else input.value = input.defaultValue; });
- dirty.clear(); notice('Unsent edits reverted.');
-});
-function mode() { readonlyView.style.display = toggle.checked ? 'none' : ''; editView.style.display = toggle.checked ? '' : 'none'; document.getElementById('edit-toolbar').style.display = toggle.checked ? '' : 'none'; }
-mode();
-function requestMode(editing) { modePending = true; toggle.disabled = true; toggle.checked = !editing; vscode.postMessage({ type: 'erd-edit-mode', generation, editing }); }
-toggle.addEventListener('change', () => { if (pending || modePending || dirty.size) { toggle.checked = !toggle.checked; notice('Apply or revert pending values first.'); return; } requestMode(toggle.checked); });
-editView.addEventListener('input', e => { if (e.target.matches('input,select')) { if (e.target.value === e.target.defaultValue || (e.target.tagName === 'SELECT' && e.target.value === e.target.querySelector('option[selected]')?.value)) dirty.delete(e.target); else dirty.add(e.target); } });
-editView.addEventListener('change', e => { if (e.target.tagName === 'SELECT') { const row = e.target.closest('[data-field]'); if (!row) return; const option = e.target.selectedOptions[0], size = row.querySelector('[data-value=size]'); size.value = option.dataset.size; size.dispatchEvent(new Event('input', { bubbles: true })); e.target.dispatchEvent(new Event('input', { bubbles: true })); } });
-function send(message) {
- if (pending || modePending) return;
- pending = ++nextRequest;
- const active = document.activeElement;
- const t = active && active.closest ? active.closest('[data-table]') : null;
- const f = active && active.closest ? active.closest('[data-field]') : null;
- const action = active && active.dataset ? active.dataset.action : null;
- focusSelector = t && action && /^\\d+$/.test(t.dataset.table) && /^[A-Za-z]+$/.test(action) ? '[data-table="' + t.dataset.table + '"] ' + (f && /^\\d+$/.test(f.dataset.field) && !['deleteField','moveUp','moveDown'].includes(action) ? '[data-field="' + f.dataset.field + '"] ' : '') + '[data-action="' + (['deleteField','moveUp','moveDown'].includes(action) ? 'addField' : action) + '"]' : null;
- document.querySelectorAll('#edit-view input, #edit-view select, #edit-view button, #edit-toolbar button, #edit-toggle').forEach(e => e.disabled = true);
- vscode.postMessage({ type: 'erd-edit-request', generation, requestId: pending, message });
-}
-editView.addEventListener('click', e => {
- const button = e.target.closest('button[data-action]'); if (!button || pending) return;
- const tableNode = button.closest('[data-table]'), fieldNode = button.closest('[data-field]');
- const table = Number(tableNode.dataset.table), field = fieldNode ? Number(fieldNode.dataset.field) : undefined, action = button.dataset.action;
- const allowed = action === 'updateField' ? fieldNode : action === 'updateTable' ? tableNode : null;
- if ([...dirty].some(input => !allowed || !allowed.contains(input) || (action === 'updateTable' && !input.hasAttribute('data-table-value')))) { notice('Apply or revert other pending values first.'); return; }
- let edit;
- if (action === 'updateTable') edit = { kind: action, table, name: tableNode.querySelector('[data-table-value=name]').value, maxRecords: numberValue(tableNode.querySelector('[data-table-value=maxRecords]')) };
- else if (action === 'updateField') edit = { kind: action, table, field, changes: { name: fieldNode.querySelector('[data-value=name]').value, typeCode: numberValue(fieldNode.querySelector('[data-value=typeCode]')), size: numberValue(fieldNode.querySelector('[data-value=size]')) } };
- if (edit && (edit.maxRecords === null || (edit.changes && (edit.changes.size === null || edit.changes.typeCode === null)))) { notice('Numeric values cannot be blank.'); return; }
- if (edit) { send({ type: 'edit', edit }); return; }
- else if (action === 'moveUp' || action === 'moveDown') edit = { kind: 'moveField', table, from: field, to: field + (action === 'moveUp' ? -1 : 1) };
- else if (action === 'addField') edit = { kind: action, table, name: '', typeCode: 3, size: 4 };
- else edit = { kind: action, table, ...(field === undefined ? {} : { field }) };
- send({ type: 'edit', edit });
-});
-document.getElementById('add-table').addEventListener('click', () => { if (dirty.size) { notice('Apply or revert pending values first.'); return; } send({ type: 'edit', edit: { kind: 'addTable', name: '', maxRecords: 1 } }); });
-save.addEventListener('click', () => { if (dirty.size) { notice('Apply or revert pending values first.'); return; } send({ type: 'save' }); });
-window.addEventListener('message', e => {
- const m = e.data;
- if (!m || m.generation !== generation) return;
- if (m.type === 'erd-enable-edit') { if (modePending || pending) aliasPending = true; else if (!toggle.disabled) requestMode(true); return; }
- if (m.type === 'erd-edit-mode-state' && modePending) { modePending = false; toggle.disabled = false; toggle.checked = m.editing; mode(); if (aliasPending) { aliasPending = false; requestMode(true); } return; }
- if (m.type !== 'erd-edit-state' || !pending || m.requestId !== pending) return;
- editView.innerHTML = m.diagram; feedback.innerHTML = m.feedback; if (typeof m.readonly === 'string') readonlyView.innerHTML = m.readonly; dirty.clear(); pending = null;
- toggle.disabled = !!m.disabled; document.getElementById('add-table').disabled = !!m.disabled; document.getElementById('edit-revert').disabled = !!m.disabled; save.disabled = !m.canSave || !!m.disabled;
- if (focusSelector) { const target = editView.querySelector(focusSelector); if (target && !target.disabled) target.focus(); }
- focusSelector = null; notice('');
- if (aliasPending && !m.disabled) { aliasPending = false; requestMode(true); }
-});
 `;
 
 export function renderErdReadonly(erd: Erd): string {
@@ -200,32 +144,46 @@ export function renderErdReadonly(erd: Erd): string {
 	return edges + cards;
 }
 
+/** `Database diagram: NAME` is shown as `Database: NAME`; any other title is kept. */
+const heading = (title: string): string => {
+	const m = /^Database diagram: ([\s\S]*)$/.exec(title);
+	return m ? `Database: <span class="mono">${esc(m[1])}</span>` : esc(title);
+};
+
 export function renderErdHtml(erd: Erd, opts: ErdHtmlOptions): string {
 	const readonly = renderErdReadonly(erd);
 	const diags = erd.diagnostics.length
 		? `<h2>Diagnostics</h2><ul>${erd.diagnostics.map((d) => `<li class="${d.severity}">${esc(d.message)}</li>`).join("")}</ul>`
 		: "";
 	const empty = erd.tables.length === 0 ? `<p>No database tables found.</p>` : "";
-	const editor = opts.editor && renderErdEditState(opts.editor.schema, opts.editor);
-	const editing = !!opts.editor?.startEditing;
-	const csp = `default-src 'none'; style-src ${esc(opts.cspSource)} 'unsafe-inline'; script-src 'nonce-${esc(opts.nonce)}';`;
+	const view = opts.editor ? new ErdDraft(opts.editor.schema).view() : undefined;
+	const editing = !!view && !!opts.editor?.startEditing;
+	const csp = `default-src 'none'; style-src 'nonce-${esc(opts.nonce)}'; script-src 'nonce-${esc(opts.nonce)}';`;
+	// Stable controller hooks: diagram-mode/edit-mode, diagram-view, edit-toolbar,
+	// edit-view, edit-count, edit-revert, edit-save, edit-notice, edit-feedback.
+	const diagramScript = SCRIPT;
+	const draftScript = ERD_DRAFT_SCRIPT.replace('__ERD_EDITING__', String(editing)).replace('__ERD_AVAILABLE__', String(!!view));
 	return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <title>${esc(opts.title)}</title>
-<style>
-body{margin:0;font-family:var(--vscode-font-family,sans-serif);color:var(--vscode-foreground,#ddd);background:var(--vscode-editor-background,#1e1e1e)}
-h1{font-size:14px;margin:8px 12px}h2{font-size:13px;margin:8px 12px 0}ul{margin:4px 12px 12px;font-size:12px}li.warning{color:#d9a400}
+<style nonce="${esc(opts.nonce)}">
+body{margin:0;font-family:var(--vscode-font-family);color:var(--vscode-foreground);background:var(--vscode-editor-background)}
+h2{font-size:13px;margin:8px 12px 0}ul{margin:4px 12px 12px;font-size:12px}li.warning{color:var(--vscode-editorWarning-foreground)}
 svg{width:100%;height:78vh;cursor:grab;display:block}
-.body{fill:#252526;stroke:#888}.head{fill:#0e639c}.tn{fill:#fff;font-weight:bold;font-size:13px}.tm{fill:#cde;font-size:10px}
-.fn{fill:#ddd;font-size:12px}.ft{fill:#9cdcfe;font-size:11px}.rel{stroke:#d9a400;stroke-width:1.5}.rl{fill:#d9a400;font-size:10px}
-.link{cursor:pointer}
-.edit-body{box-sizing:border-box;width:100%;height:100%;overflow:auto;padding:8px;background:#252526;border:1px solid #888;color:var(--vscode-foreground,#ddd);font-size:12px}.edit-body label{display:inline-block;margin:3px}.edit-body input{width:90px}.field{border-top:1px solid #888;padding:4px}.edit-body button{margin:2px}pre{white-space:pre-wrap}.error{color:#f88}
+.body{fill:var(--vscode-editor-background);stroke:var(--vscode-panel-border)}.head{fill:var(--vscode-button-background)}.tn{fill:var(--vscode-button-foreground);font-weight:bold;font-size:13px}.tm{fill:var(--vscode-button-foreground);font-size:10px}
+.fn{fill:var(--vscode-foreground);font-size:12px}.ft{fill:var(--vscode-descriptionForeground);font-size:11px}.rel{stroke:var(--vscode-editorWarning-foreground);stroke-width:1.5}.rl{fill:var(--vscode-editorWarning-foreground);font-size:10px}
+.link{cursor:pointer}.error{color:var(--vscode-errorForeground)}pre{white-space:pre-wrap}
+${ERD_DRAFT_STYLE}
 </style></head><body>
-<h1>${esc(opts.title)}</h1>${opts.recoveryMessage ? `<p class="error" role="alert">${esc(opts.recoveryMessage)}</p>` : ''}<label><input id="edit-toggle" type="checkbox" ${editor ? '' : 'disabled'} ${editing && editor ? 'checked' : ''}>Edit schema</label>${editor ? '' : `<span>${esc(opts.disabledReason ?? 'No .rev available; schema editing is disabled.')}</span>`}
-<div id="edit-toolbar" data-editing="${editing && !!editor}" style="display:${editing && editor ? '' : 'none'}"><button id="add-table">Add table</button><button id="edit-revert">Revert unsent edits</button><button id="edit-save" ${editor?.canSave ? '' : 'disabled'}>Save</button><span id="edit-notice" role="status"></span></div>${empty}
-<svg id="erd" xmlns="http://www.w3.org/2000/svg"><g id="vp"><g id="readonly-view" style="display:${editing && editor ? 'none' : ''}">${readonly}</g><g id="edit-view" style="display:${editing && editor ? '' : 'none'}">${editor?.diagram ?? ''}</g></g></svg>
-<div id="edit-feedback">${editor?.feedback ?? ''}</div>${diags}
-<script nonce="${esc(opts.nonce)}">${SCRIPT.replace('__ERD_GENERATION__', String(opts.generation ?? 0))}</script>
+<header class="erd-topbar"><h1>${heading(opts.title)}</h1>
+<nav class="erd-seg" aria-label="Database views"><button id="diagram-mode" type="button" disabled>Diagram</button><button id="edit-mode" type="button" disabled>Edit schema</button></nav>
+${view ? '' : `<span class="erd-unavailable">${esc(opts.disabledReason ?? 'No .rev available; schema editing is disabled.')}</span>`}
+<div id="edit-toolbar" class="erd-status" ${editing ? '' : 'hidden'}><span id="edit-count">${view?.count ? `${view.count} pending ${view.count === 1 ? 'change' : 'changes'}` : 'No unsaved changes'}</span><span id="edit-errors" class="erd-errors" ${view?.issues.some(i => i.severity === 'error') ? '' : 'hidden'}>${plural(view ? view.issues.filter(i => i.severity === 'error').length : 0, 'error')}</span><button id="edit-revert" class="erd-secondary" type="button" disabled>Discard</button><button id="edit-save" class="erd-primary" type="button" disabled>Save</button><span id="edit-notice" role="status"></span></div></header>
+${opts.recoveryMessage ? `<p class="error" role="alert">${esc(opts.recoveryMessage)}</p>` : ''}
+<div id="diagram-view" ${editing ? 'hidden' : ''}>${empty}<svg id="erd" xmlns="http://www.w3.org/2000/svg"><g id="vp"><g id="readonly-view">${readonly}</g></g></svg>${diags}</div>
+<fieldset id="edit-view" ${editing ? '' : 'hidden'} disabled>${view ? renderErdDraft(view) : ''}</fieldset>
+<div id="edit-feedback"></div>
+<script nonce="${esc(opts.nonce)}">${diagramScript}\nconst generation = ${Number.isSafeInteger(opts.generation) ? opts.generation : 0};\n${draftScript}</script>
 </body></html>`;
 }

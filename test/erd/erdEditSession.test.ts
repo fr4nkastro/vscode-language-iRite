@@ -1,4 +1,5 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
+import { ErdDraft } from '../../src/erd/erdDraft';
 import { ErdEditSession, projectSource } from '../../src/erd/erdEditSession';
 import { createDbSchema } from '../../src/dbschema/model';
 import { parseRev } from '../../src/rev';
@@ -19,6 +20,28 @@ function limitSession(bytes: Buffer) {
  return { session, counts: () => [confirms, backups, writes], disk: () => disk };
 }
 
+it('reuses a protected validated snapshot until the draft changes', async () => {
+ const h=limitSession(original), spy=vi.spyOn(ErdDraft.prototype,'view');
+ try {
+  const view=h.session.view; view.tables[0].name='tampered';
+  expect(h.session.hasChanges).toBe(false); expect(h.session.view.tables[0].name).toBe('T'); expect(spy).toHaveBeenCalledTimes(1);
+  await h.session.request({type:'draft-action',action:{kind:'setTable',table:view.tables[0].key,property:'name',value:'New'}});
+  expect(h.session.hasChanges).toBe(true); expect(h.session.view.tables[0].name).toBe('New'); expect(spy).toHaveBeenCalledTimes(2);
+ } finally { spy.mockRestore(); }
+});
+
+it('reports distinct move failures and keeps the authoritative unknown span guard', async () => {
+ const bytes=Buffer.from('<Indicator><ConfigHash value="x"/><Config>\nDB.SCHEMA#1=10,0,A,3,4,U,99,5,B,3,4\nDB.ALIAS#1=T\n</Config></Indicator>');
+ const h=limitSession(bytes), table=h.session.view.tables[0], [a,u,b]=table.fields, before=h.session.model;
+ const move=async (field:string,to:number) => (await h.session.request({type:'draft-action',action:{kind:'moveField',table:table.key,field,to}})).message;
+ expect(await move('draft-999',0)).toBe('Field not found');
+ expect(await move(a.key,3)).toBe('Field index out of range');
+ expect(await move(a.key,2)).toBe('Cannot move unknown type code field');
+ expect(await move(u.key,0)).toBe('Cannot move unknown type code field');
+ expect(h.session.model).toEqual(before); expect(h.session.hasChanges).toBe(false);
+ expect(h.counts()).toEqual([0,0,0]); expect(h.disk().equals(bytes)).toBe(true); expect(b.name).toBe('B');
+});
+
 it('only resolves links to a trusted project file and returns its stored spelling', () => {
  expect(projectSource(['project/main.iri'], 'project/./MAIN.iri')).toBe('project/main.iri');
  expect(projectSource(['project/main.iri'], 'project/other.iri')).toBeUndefined();
@@ -31,10 +54,11 @@ it('gates requests, acknowledges invalid input, and saves the edited schema thro
  const session = new ErdEditSession(original, createDbSchema(parseRev(original.toString())), {
   read: () => disk, confirm: async () => true, backup: () => { backups++; }, write: b => { writes++; disk = b; },
  });
- const edit = { type: 'edit', edit: { kind: 'updateTable', table: 1, name: 'New' } };
+ const edit = { type: 'draft-action', action: { kind: 'setTable', table: session.view.tables[0].key, property: 'name', value: 'New' } };
  expect((await session.request(edit)).message).toMatch(/disabled/i);
  session.editing = true;
- expect((await session.request({type:'edit', edit:{kind:'deleteTable',table:99}})).message).toMatch(/rejected/i);
+ expect((await session.request({type:'draft-action', action:{kind:'removeTable',table:'draft-999'}})).message).toMatch(/rejected/i);
+ expect((await session.request({type:'edit', edit:{kind:'updateTable',table:1,name:'Unsafe'}})).message).toMatch(/rejected/i);
  await session.request(edit);
  expect(session.model.tables[0].name).toBe('New');
  expect((await session.request({type:'save'})).saved).toBe(true);
@@ -51,10 +75,10 @@ it('blocks invalid and concurrent saves and rejects disk drift after confirmatio
   backup: () => { backups++; }, write: b => { writes++; disk = b; },
  });
  session.editing = true;
- await session.request({type:'edit', edit:{kind:'updateTable',table:1,name:''}});
+ await session.request({type:'draft-action', action:{kind:'setTable',table:session.view.tables[0].key,property:'name',value:''}});
  expect((await session.request({type:'save'})).message).toMatch(/invalid/i);
  expect([writes,backups]).toEqual([0,0]);
- await session.request({type:'edit', edit:{kind:'updateTable',table:1,name:'New'}});
+ await session.request({type:'draft-action', action:{kind:'setTable',table:session.view.tables[0].key,property:'name',value:'New'}});
  const first = session.request({type:'save'});
  expect((await session.request({type:'save'})).message).toMatch(/disabled/i);
  disk = Buffer.from('external change'); resolveConfirm(true);
@@ -66,7 +90,7 @@ it('blocks invalid and concurrent saves and rejects disk drift after confirmatio
 it('saves 100 fields and rejects 101 before confirmation, backup or write', async () => {
  for (const initial of [99, 100]) {
   const bytes = limitFile(1, initial), h = limitSession(bytes);
-  expect((await h.session.request({type:'edit',edit:{kind:'addField',table:1,name:`F${initial}`,typeCode:3,size:4}})).message).toBeUndefined();
+  expect((await h.session.request({type:'draft-action',action:{kind:'addField',table:h.session.view.tables[0].key,name:`F${initial}`,typeCode:3}})).message).toBeUndefined();
   const result = await h.session.request({type:'save'});
   if (initial === 99) {
    expect(result.saved).toBe(true); expect(h.counts()).toEqual([1,1,1]);
@@ -80,8 +104,8 @@ it('saves 100 fields and rejects 101 before confirmation, backup or write', asyn
 it('saves 128 tables and rejects 129 before confirmation, backup or write', async () => {
  for (const initial of [127, 128]) {
   const bytes = limitFile(initial, 1), h = limitSession(bytes);
-  expect((await h.session.request({type:'edit',edit:{kind:'addTable',name:`T${initial + 1}`,maxRecords:1}})).message).toBeUndefined();
-  expect((await h.session.request({type:'edit',edit:{kind:'addField',table:initial + 1,name:'F0',typeCode:3,size:4}})).message).toBeUndefined();
+  expect((await h.session.request({type:'draft-action',action:{kind:'addTable',name:`T${initial + 1}`,maxRecords:'1'}})).message).toBeUndefined();
+  expect((await h.session.request({type:'draft-action',action:{kind:'addField',table:h.session.view.tables.at(-1)!.key,name:'F0',typeCode:3}})).message).toBeUndefined();
   const result = await h.session.request({type:'save'});
   if (initial === 127) {
    expect(result.saved).toBe(true); expect(h.counts()).toEqual([1,1,1]);
@@ -95,12 +119,16 @@ it('saves 128 tables and rejects 129 before confirmation, backup or write', asyn
 it('rejects replacing a field or table while a legacy file remains above its count limit', async () => {
  for (const kind of ['field','table'] as const) {
   const bytes = kind === 'field' ? limitFile(1,101) : limitFile(129,1), h = limitSession(bytes);
-  const edits = kind === 'field' ? [
-   {kind:'deleteField',table:1,field:0}, {kind:'addField',table:1,name:'New',typeCode:3,size:4},
-  ] : [
-   {kind:'deleteTable',table:1}, {kind:'addTable',name:'New',maxRecords:1}, {kind:'addField',table:1,name:'F0',typeCode:3,size:4},
-  ];
-  for (const edit of edits) expect((await h.session.request({type:'edit',edit})).message).toBeUndefined();
+  const table = h.session.view.tables[0];
+  const action = async (action: object) => expect((await h.session.request({type:'draft-action',action})).message).toBeUndefined();
+  if (kind === 'field') {
+   await action({kind:'removeField',table:table.key,field:table.fields[0].key});
+   await action({kind:'addField',table:table.key,name:'New',typeCode:3});
+  } else {
+   await action({kind:'removeTable',table:table.key});
+   await action({kind:'addTable',name:'New',maxRecords:'1'});
+   await action({kind:'addField',table:h.session.view.tables.at(-1)!.key,name:'F0',typeCode:3});
+  }
   expect((await h.session.request({type:'save'})).message).toMatch(kind === 'field' ? /100 fields/ : /128 tables/);
   expect(h.counts()).toEqual([0,0,0]); expect(h.disk().equals(bytes)).toBe(true);
  }
@@ -109,14 +137,15 @@ it('rejects replacing a field or table while a legacy file remains above its cou
 it('allows naming blank UI additions when eight-character names already exist', async () => {
  const bytes = Buffer.from(original.toString().replace('DB.ALIAS#1=T', 'DB.ALIAS#1=NewTable').replace('A,3,4', 'NewField,3,4'));
  const h = limitSession(bytes);
- for (const edit of [
-  {kind:'addField',table:1,name:'',typeCode:3,size:4},
-  {kind:'updateField',table:1,field:1,changes:{name:'Field2'}},
-  {kind:'addTable',name:'',maxRecords:1},
-  {kind:'updateTable',table:2,name:'Table2'},
-  {kind:'addField',table:2,name:'',typeCode:3,size:4},
-  {kind:'updateField',table:2,field:0,changes:{name:'Field1'}},
- ]) expect((await h.session.request({type:'edit',edit})).message).toBeUndefined();
+ const action = async (action: object) => expect((await h.session.request({type:'draft-action',action})).message).toBeUndefined();
+ const first = h.session.view.tables[0].key;
+ await action({kind:'addField',table:first,name:'',typeCode:3});
+ await action({kind:'setField',table:first,field:h.session.view.tables[0].fields.at(-1)!.key,property:'name',value:'Field2'});
+ await action({kind:'addTable',name:'',maxRecords:'1'});
+ const second = h.session.view.tables.at(-1)!.key;
+ await action({kind:'setTable',table:second,property:'name',value:'Table2'});
+ await action({kind:'addField',table:second,name:'',typeCode:3});
+ await action({kind:'setField',table:second,field:h.session.view.tables.at(-1)!.fields[0].key,property:'name',value:'Field1'});
  expect((await h.session.request({type:'save'})).saved).toBe(true);
  expect(h.counts()).toEqual([1,1,1]);
 });
@@ -128,13 +157,27 @@ it('retains the existing duplicate-alias rejection for an unchanged legacy file'
  expect(h.counts()).toEqual([0,0,0]); expect(h.disk().equals(bytes)).toBe(true);
 });
 
+it('validates raw intent, preserves it across cancellation, and discards without writes', async () => {
+ const h = limitSession(original);
+ const table = h.session.view.tables[0].key;
+ expect((await h.session.request({type:'draft-action',action:{kind:'setTable',table,property:'name',value:''}})).message).toBeUndefined();
+ expect(h.session.view.issues.some(i => i.severity === 'error')).toBe(true);
+ expect((await h.session.request({type:'save'})).message).toBeTruthy();
+ expect(h.counts()).toEqual([0,0,0]);
+ expect(h.session.hasChanges).toBe(true);
+ expect((await h.session.request({type:'draft-discard'})).message).toBeUndefined();
+ expect(h.session.view.tables[0].name).toBe('T');
+ expect(h.session.hasChanges).toBe(false);
+ expect(h.disk().equals(original)).toBe(true);
+});
+
 it('disables future writes after an uncertain write', async () => {
  let writes = 0;
  const session = new ErdEditSession(original, createDbSchema(parseRev(original.toString())), {
   read: () => original, confirm: async () => true, backup: () => {}, write: () => { writes++; },
  });
  session.editing = true;
- await session.request({type:'edit', edit:{kind:'updateTable',table:1,name:'New'}});
+ await session.request({type:'draft-action', action:{kind:'setTable',table:session.view.tables[0].key,property:'name',value:'New'}});
  expect((await session.request({type:'save'})).message).toMatch(/post-check/i);
  expect(session.unusable).toBe(true);
  expect((await session.request({type:'save'})).message).toMatch(/disabled/i);
