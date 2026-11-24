@@ -4,6 +4,7 @@ import { registerPreviewCommands } from "./commands/previewScreens";
 import { registerErdCommands } from "./commands/erd";
 import { registerSfcCommands } from "./commands/sfc";
 import { registerDocsCommands } from "./commands/docs";
+import { registerDbAccess } from "./commands/dbAccess";
 
 export function activate(context: vscode.ExtensionContext): void {
   const channel = vscode.window.createOutputChannel("iRite Information");
@@ -15,6 +16,7 @@ export function activate(context: vscode.ExtensionContext): void {
   registerErdCommands(context);
   registerSfcCommands(context);
   registerDocsCommands(context);
+  registerDbAccess(context);
 }
 
 export function deactivate(): void {

@@ -2,6 +2,7 @@ ChangeLog
 =========
 
 #### Unreleased
+- New DB access standard check: every `type X is database` table is expected to have `db<Table>Create/Read/Update/Delete/GetRecord/Get<Field>/Set<Field>/Search`; a Warning on the declaration lists the missing and pending routines. Quick Fix / `iRite: Scaffold DB Access Routines` appends stubs marked `-- TODO(irite-db): pending implementation` (never overwrites); `iRite: Export Pending DB Routines (JSON)` hands the list to an MCP/agent. Settings `irite.dbAccess.*`.
 - New command `iRite: Generate Project Docs`: writes Markdown (index, ERD, SFC, screens with SVG wireframes, routines) to `docs/generated/`; never overwrites files without the generated marker.
 - New command `iRite: Show Database Diagram`: ERD of the iRite databases merged with the `.rev` schema, with drift diagnostics and inferred relations.
 - New command `iRite: Show Sequence Diagram (SFC)`: Grafcet-style diagram derived from the STATES/TRANSITIONS Petri state machine, with settings `irite.sfc.statesEnum`, `irite.sfc.transitionsEnum`, `irite.sfc.initialStep`.
