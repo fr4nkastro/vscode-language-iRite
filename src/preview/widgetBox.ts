@@ -21,6 +21,9 @@ export function widgetBox(w: Pick<RevWidget, "typeName" | "x" | "y" | "width" | 
 	if (w.typeName === "scale") {
 		width = width ?? 220;
 		height = height ?? 60;
+	} else if (w.typeName === "softkey") {
+		width = width ?? 800;
+		height = height ?? 70;
 	} else if (w.typeName === "symbol" || w.typeName === "unknown") {
 		width = width ?? 24;
 		height = height ?? 24;

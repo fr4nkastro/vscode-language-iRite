@@ -4,6 +4,8 @@
  * write path (widget x/y/width/height) lives in `./serialize` and is lossless.
  */
 
+import { propsOf, widgetTypeDef } from "./widgetCatalog";
+
 export interface RevHeader {
 	revision?: string;
 	indicatorModel?: string;
@@ -22,10 +24,26 @@ export interface ConfigEntry {
 	line: number;
 }
 
-export type WidgetTypeName = "scale" | "bargraph" | "label" | "symbol" | "image" | "line" | "unknown";
+export type WidgetTypeName =
+	| "scale"
+	| "bitmap"
+	| "bargraph"
+	| "label"
+	| "numeric"
+	| "symbol"
+	| "image"
+	| "chart"
+	| "softkey"
+	| "line"
+	| "monolabel"
+	| "unknown";
 
 export interface RevWidget {
 	id: number;
+	/** Every token of the value as written (type code first), entity-decoded; extra and unknown tokens included. */
+	tokens: string[];
+	/** Named raw string tokens by catalog field name (`{}` for types the catalog does not know). */
+	props: Record<string, string>;
 	type: number;
 	typeName: WidgetTypeName;
 	screen?: number;
@@ -165,7 +183,7 @@ function parseWidget(entry: ConfigEntry, diagnostics: RevDiagnostic[]): RevWidge
 	const id = entry.index as number;
 	const f = entry.value.split(",");
 	const type = Number(f[0]);
-	const base: RevWidget = { id, type: Number.isFinite(type) ? type : -1, typeName: "unknown", raw: f, line: entry.line };
+	const base: RevWidget = { id, type: Number.isFinite(type) ? type : -1, typeName: "unknown", tokens: f, props: propsOf(type, f), raw: f, line: entry.line };
 	const bad = (why: string): RevWidget => {
 		diagnostics.push({ line: entry.line, message: `WDGT#${id}: ${why}; kept as unknown` });
 		return base;
@@ -216,9 +234,62 @@ function parseWidget(entry: ConfigEntry, diagnostics: RevDiagnostic[]): RevWidge
 				return bad(layout("line", 9));
 			}
 			return { ...base, typeName: "line", ...box(), color: f[7], screen: num(f[8]) };
+		case 2:
+		case 5:
+		case 8:
+		case 9:
+		case 11:
+			return fromCatalog(base, type, f, bad, layout);
 		default:
 			return bad(`unknown widget type ${f[0]}`);
 	}
+}
+
+const CATALOG_NAMES: Record<number, WidgetTypeName> = { 2: "bitmap", 5: "numeric", 8: "chart", 9: "softkey", 11: "monolabel" };
+
+const int = (s: string | undefined): number | undefined => (s !== undefined && /^-?\d+$/.test(s.trim()) ? Number(s) : undefined);
+
+/** Types read through the catalog (named properties): geometry, screen, alias, caption, font and colors. */
+function fromCatalog(
+	base: RevWidget,
+	type: number,
+	f: string[],
+	bad: (why: string) => RevWidget,
+	layout: (name: string, n: number) => string,
+): RevWidget {
+	const def = widgetTypeDef(type);
+	const name = CATALOG_NAMES[type];
+	if (!def || !name) {
+		return bad(`unknown widget type ${f[0]}`);
+	}
+	if (f.length < def.tokenCount) {
+		return bad(layout(name, def.tokenCount));
+	}
+	const p = base.props;
+	const out: RevWidget = {
+		...base,
+		typeName: name,
+		x: int(p.x),
+		y: int(p.y),
+		width: int(p.width),
+		height: int(p.height),
+		screen: int(p.screen),
+		alias: def.aliasPersisted ? p.alias || undefined : undefined,
+	};
+	if (p.caption !== undefined) {
+		out.text = p.caption;
+	}
+	if (p.fontSize !== undefined) {
+		out.fontSize = int(p.fontSize);
+	}
+	if (p.color !== undefined) {
+		out.color = p.color;
+		if (type === 9) {
+			out.foreground = p.color;
+			out.background = p.backgroundColor;
+		}
+	}
+	return out;
 }
 
 export function dbTypeName(code: number): DbTypeName {

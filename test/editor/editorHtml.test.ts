@@ -65,3 +65,35 @@ describe("editor page", () => {
 		expect(html).toMatch(/view only, not saved/i);
 	});
 });
+
+describe("editor page: palette, inspector, hint", () => {
+	it("lists every non-legacy widget type as a draggable palette item, and says why type 5 is missing", () => {
+		const types = [...html.matchAll(/<button type="button" draggable="true" data-wtype="(\d+)"/g)].map((m) => Number(m[1]));
+		expect(types).toEqual([1, 2, 3, 4, 6, 7, 8, 9, 10, 11]);
+		expect(html).toMatch(/Numeric widget \(type 5, legacy/);
+	});
+	it("embeds the catalog, the property tokens of every widget and an inspector container per screen", () => {
+		expect(script).toContain('"fontSize"');
+		expect(script).toMatch(/const PROPS = \{"/);
+		expect(html.match(/class="insp"/g)).toHaveLength(view.screens.length);
+		expect(script).toContain("type: 'setProp'");
+		expect(script).toContain("type: 'renameAlias'");
+		expect(script).toContain("e.key === 'Delete'");
+		expect(script).toContain("'dragstart'");
+		expect(script).toContain("'drop'");
+	});
+	it("shows the main.iri lines as escaped text and never offers to write the file", () => {
+		const out = renderEditorHtml(view, { ...opts, hint: { add: ["a<b>     : constant integer := 1;"], change: [{ old: "x         : constant integer := 2;", new: "y         : constant integer := 2;" }], remove: [] } });
+		expect(out).toContain("+ a&lt;b&gt;");
+		expect(out).toContain("- x         : constant integer := 2;");
+		expect(out).toContain("never edited by this extension");
+		expect(html).not.toContain('id="irihint"');
+	});
+	it("escapes image names and keeps a hostile selection or image list out of the script", () => {
+		const out = renderEditorHtml(view, { ...opts, images: ['"><b>.png', "ok.png"], selected: 3 });
+		expect(out).not.toContain('"><b>.png');
+		expect(out).toContain('<option value="ok.png">');
+		expect(/<script nonce="NONCE">([\s\S]*)<\/script>/.exec(out)![1]).toContain("const INITSEL = 3;");
+		expect(out.match(/<script/g)).toHaveLength(1);
+	});
+});

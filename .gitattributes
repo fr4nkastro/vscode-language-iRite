@@ -1,1 +1,2 @@
 test/fixtures/editor/** -text
+test/fixtures/rev/hashed.rev -text

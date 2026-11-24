@@ -36,9 +36,33 @@ function shape(w: WidgetView, width: number, height: number, opts: SvgOptions): 
 				`<text x="2" y="12" font-size="11" fill="#555">${xmlEscape(w.image ?? "(no image)")}</text>`
 			);
 		}
-		case "label": {
+		case "label":
+		case "monolabel":
+		case "numeric": {
 			const size = typeof w.fontSize === "number" && Number.isFinite(w.fontSize) ? Math.round(w.fontSize) : 12;
-			return `<text x="0" y="${size}" font-size="${size}" fill="${color(w.color, "Black")}">${xmlEscape(w.text ?? "")}</text>`;
+			const family = w.typeName === "monolabel" ? ' font-family="monospace"' : "";
+			return `<text x="0" y="${size}" font-size="${size}"${family} fill="${color(w.color, "Black")}">${xmlEscape(w.text ?? (w.typeName === "numeric" ? "123.4" : ""))}</text>`;
+		}
+		case "bitmap":
+			return (
+				`<rect x="0.5" y="0.5" width="${Math.max(0, width - 1)}" height="${Math.max(0, height - 1)}" fill="#f4f4f4" stroke="#666"/>` +
+				`<path d="M${width * 0.2} ${height * 0.25} H${width * 0.8} L${width * 0.55} ${height * 0.75} H${width * 0.45} Z" fill="none" stroke="#666" stroke-width="2"/>`
+			);
+		case "chart":
+			return (
+				`<rect x="0.5" y="0.5" width="${Math.max(0, width - 1)}" height="${Math.max(0, height - 1)}" fill="#fff" stroke="#666"/>` +
+				`<polyline points="${width * 0.1},${height * 0.8} ${width * 0.35},${height * 0.4} ${width * 0.6},${height * 0.6} ${width * 0.9},${height * 0.2}" fill="none" stroke="#888" stroke-width="2"/>`
+			);
+		case "softkey": {
+			const bg = color(w.background, "#F0EEEE");
+			const fg = color(w.foreground, "#393939");
+			const n = 5;
+			const cell = width / n;
+			let keys = "";
+			for (let i = 0; i < n; i++) {
+				keys += `<rect x="${i * cell + 2}" y="2" width="${Math.max(0, cell - 4)}" height="${Math.max(0, height - 4)}" fill="none" stroke="${fg}"/>`;
+			}
+			return `<rect width="${width}" height="${height}" fill="${bg}"/>${keys}`;
 		}
 		case "line":
 			return `<rect width="${width}" height="${height}" fill="${color(w.color, "Black")}"/>`;

@@ -48,7 +48,8 @@ describe("applyWidgetPatches: one widget, one line", () => {
 		expect(d[0][0].startsWith("WDGT#3=")).toBe(true);
 		const after = parseRev(out).widgets.find((w) => w.id === 3)!;
 		expect(after.x).toBe((before.x ?? 0) + 5);
-		expect({ ...after, x: before.x, raw: before.raw }).toEqual(before);
+		expect({ ...after, x: before.x, raw: before.raw, tokens: before.tokens, props: before.props }).toEqual(before);
+	expect(after.props.x).toBe(String((before.x ?? 0) + 5));
 	});
 
 	it("resizing a label changes only fields 3 and 4", () => {

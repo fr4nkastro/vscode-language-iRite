@@ -112,6 +112,26 @@ Limitations:
 Right-click a `.rev` and choose **iRite: Edit Screens** (or "Open With..." >
 "iRite: Edit Screens"). It is never the default editor of `.rev` files.
 
+-   **Palette:** a toolbox lists every widget type the 1280 supports (the
+    legacy numeric type is listed but cannot be created). Drag an item onto the
+    canvas to add a widget at the drop point (snap applies) on the current
+    screen, with Revolution's default size, caption and colours; clicking an item
+    adds it at a default position. A new widget gets the lowest free id
+    (starting at 1; ids of widgets deleted in the same session stay reserved
+    until you save) and a default alias (`lbl4`, `bar7`, ...). Existing ids are
+    never renumbered.
+-   **Property inspector:** the selected widget shows all its properties with
+    typed controls (lists for enumerations, color input, numbers with ranges,
+    text, image path with the `sdimages/` files suggested). The alias must be an
+    iRite identifier of at most 8 characters and unique; captions are at most 64
+    characters and cannot contain commas.
+-   **Delete** (Delete key or button): before a widget is deleted or its alias
+    renamed, the editor lists the code references (reuse of the preview's
+    reference index) and warns when the alias is used in code.
+-   **`main.iri` hint:** the extension never edits `main.iri`. After adding,
+    renaming or deleting widgets the panel shows the exact constant lines to add
+    or update (the format Revolution generates), or regenerate `main.iri` in
+    Revolution.
 -   Drag a widget, use the arrow keys (1 px; **Shift**: one grid step), drag the
     resize handles, or type x / y / w / h. **Snap** and the grid size
     (`irite.editor.snap`, `irite.editor.gridSize`) are in the toolbar.
@@ -121,19 +141,22 @@ Right-click a `.rev` and choose **iRite: Edit Screens** (or "Open With..." >
 -   Everything is edited in 7" pixels. On the 12" view the pointer movement is
     converted back to 7" pixels.
 -   Undo, redo, the dirty marker, save and revert are the standard VS Code ones.
--   Saving rewrites **only** the x, y, width and height of the edited `WDGT#n`
-    lines: BOM, CRLF, key order, widget ids, line order and every other byte are
-    kept, so the diff is one line per edited widget. Saving without edits does
-    not touch the file.
+-   Saving changes only the `WDGT#n` lines you edited, added or removed (one
+    line per affected widget) and, because the `Config` text changed, the
+    `ConfigHash` header line. BOM, CRLF, key order, widget ids, line order, other
+    lines and `<Printers>` are kept. Saving without edits does not touch the
+    file.
 -   Z-order buttons (front, back, one step) and hide/show are **view only** and
     are not saved: Revolution paints in widget id order and the ids are the
     constants of the generated `main.iri`, so they are never renumbered.
--   **Integrity hash:** `ConfigHash` is not recomputed (its algorithm could not
-    be reproduced) and the result has not been verified in Revolution or on a
-    1280. The first save of a session asks you to confirm and copies the file to
-    `main.rev.bak` (a timestamped name when that exists) first. Open the saved
-    file in Revolution before loading it on an indicator, and keep the backup
-    until you have. Restore with: copy the `.bak` over the `.rev`.
+-   **Integrity hash:** `ConfigHash` is recomputed on every save that changes
+    the widgets (SHA-1 of the UTF-16LE `Config` text; the recipe reproduces the
+    stored hash of files Revolution wrote). **Still unverified:** that Revolution
+    opens an edited file without complaint and that a 1280 loads it. The first
+    save of a session asks you to confirm and copies the file to `main.rev.bak`
+    (a timestamped name when that exists) first. Open the saved file in
+    Revolution before loading it on an indicator, and keep the backup until you
+    have. Restore with: copy the `.bak` over the `.rev`.
 -   A save is refused when the file changed on disk since it was opened.
 
 #### Headless CLI (for agents and scripts)
@@ -146,8 +169,8 @@ node rev-cli.js widgets <file.rev> [--screen n] [--panel 7|12]
 node rev-cli.js render  <file.rev> --screen n [--panel 7|12] [--out screen.svg]
 ```
 
-`screens` and `widgets` print JSON (boxes, panel boxes, overlaps,
-out-of-bounds); `render` prints an SVG with the same panel geometry, widget
+`screens` and `widgets` print JSON (type name, named properties `props`, boxes,
+panel boxes, overlaps, out-of-bounds); `render` prints an SVG with the same panel geometry, widget
 boxes and paint order as the preview. An MCP tool can run it as a subprocess and
 read stdout (for example `node <extension>/dist/rev-cli.js widgets main.rev
 --screen 2`). PNG is not produced (it needs a rasterizer dependency); convert

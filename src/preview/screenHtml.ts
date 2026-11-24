@@ -71,9 +71,26 @@ export function renderWidget(w: WidgetView, opts: RenderOptions): string {
 			break;
 		}
 		case "label":
-			cls += " label";
+		case "monolabel":
+		case "numeric":
+			cls += w.typeName === "monolabel" ? " label mono" : " label";
 			extra = `font-size:${px(w.fontSize, 12)}px;color:${color(w.color, "Black")};`;
-			inner = escapeHtml(w.text ?? "");
+			inner = escapeHtml(w.text ?? (w.typeName === "numeric" ? "123.4" : ""));
+			break;
+		case "bitmap":
+			cls += " bitmap";
+			inner = "&#9660;";
+			break;
+		case "chart":
+			cls += " chart";
+			inner = "&#8767;";
+			break;
+		case "softkey":
+			cls += " softkey";
+			width = width ?? 800;
+			height = height ?? 70;
+			extra = `color:${color(w.foreground, "#393939")};background:${color(w.background, "#F0EEEE")};`;
+			inner = "F1 F2 F3 F4 F5";
 			break;
 		case "line":
 			cls += " line";
@@ -122,7 +139,11 @@ export function renderWidget(w: WidgetView, opts: RenderOptions): string {
 export const WIDGET_STYLE = `
 .w{position:absolute;box-sizing:border-box;overflow:hidden;cursor:pointer;}
 .label{white-space:nowrap;text-overflow:ellipsis;}
+.mono{font-family:monospace;}
 .line{min-height:1px;}
+.bitmap{border:1px solid #666;background:#f4f4f4;color:#666;display:flex;align-items:center;justify-content:center;}
+.chart{border:1px solid #666;background:#fff;color:#888;font-size:28px;display:flex;align-items:center;justify-content:center;}
+.softkey{border:1px solid #999;display:flex;align-items:center;justify-content:space-around;font-size:14px;}
 .scale{display:flex;align-items:center;justify-content:center;font-family:monospace;}
 .bargraph{border:2px solid #000;}
 .symbol{border:2px solid #888;border-radius:50%;}
