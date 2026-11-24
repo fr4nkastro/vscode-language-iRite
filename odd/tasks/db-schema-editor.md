@@ -18,6 +18,10 @@ Opt-in `.rev` write-back on `feat/db-schema-editor` from `335b9eb`. Local commit
 - S11 (R3-no-feedback-noop-save): a save with no changes shows an informational message instead of silence.
 - S12 (R1-001): write the .rev atomically (temp file in the same directory, then rename), keeping backup-first and the readback post-check; test the pure part.
 
+- S13 (S-A): Edit mode inside the ERD webview: an "Edit schema" toggle (off by default, the ERD stays read-only until enabled). In edit mode each table card offers rename, max records, delete table, add column, and per column inline name/type/size, move up/down, delete; a toolbar button adds a table. Unknown type codes stay raw and their columns are not editable (same rule as `src/dbschema`). Validation errors from `validateDbSchema` show in the view and block Save.
+- S14 (S-B): Reuse, do not re-implement: edits go through `src/dbschema/model.ts` (`editDbSchema`, `validateDbSchema`), message parsing through `src/dbschema/messages.ts` (`parseDbMessage`), save through `src/dbschema/workflow.ts` / `save.ts` (backup first, save plan, atomic write and post-check, ConfigHash recomputed, confirm modal), hint through `src/dbschema/iriHint.ts`. After a save the ERD re-renders from the saved `.rev` and shows the main.iri hint and the warning about code/dbaccess breakage. The ERD keeps working when there is no `.rev` (edit mode disabled with a message), and keeps its existing behaviour (source links, Mermaid export) unchanged.
+- S15 (S-C): The separate `iRite: Edit Database Schema` command stays and opens the ERD in edit mode (single editor UI). Update readme, AGENTS.md, CHANGELOG accordingly.
+
 ## Tasks
 
 - [x] T1 — S7, except schema editor round-trip: parser and fixtures. Route: worker. Commit: `3ab8c78`.
@@ -28,6 +32,11 @@ Opt-in `.rev` write-back on `feat/db-schema-editor` from `335b9eb`. Local commit
 - [ ] T6 — S1–S8: foreground checks and targeted independent verification passed; native review blocked on candidate-specific consent. Route: worker and verifier. Commit: this ODD evidence commit.
 
 - [x] T7 — S9–S12: resolve the four non-blocking native review findings. Route: foreground worker + independent verifier. Risk: item 1 (persisted indicator configuration). Commit: `971ba5d`.
+
+- [x] T8 — S13–S14: edit-mode diagram cards, validation display and view protocol. Route: foreground worker, TDD. Commit: `94f1d77`.
+- [x] T9 — S13–S15: shared ERD command host, message flow and `.rev` persistence. Route: foreground worker + independent verifier. Risk: item 1 (persisted indicator configuration). Commit: `bc2c8dc`.
+- [x] T10 — S15: user and project documentation. Route: bounded documentation unit. Commit: `0f2f25b`.
+- [x] T11 — S13–S15: final foreground checks and branch-point self-review; wrong-file blocker corrected and rechecked. Correction and checked source commit: `a6e92f1`. Evidence: this ODD commit.
 
 ## Log
 
@@ -43,3 +52,10 @@ Opt-in `.rev` write-back on `feat/db-schema-editor` from `335b9eb`. Local commit
 - L10 (user, Goal verbatim): Resolve the four non-blocking findings from the approved native review of feature odd/tasks/db-schema-editor.md (branch feat/db-schema-editor, this cwd). Add a T7 task and a Log entry to the feature doc (keep L1 unchanged) and commit it with git add -f.
 - L10 constraints: TDD (RED then GREEN), staged checks (focused while iterating; npm run typecheck, npm test, npm run compile once at the end via a foreground gentle-ai-worker), Conventional Commits with git -c user.name="Allan Castro" -c user.email=it@ipesah.com, no co-author lines, no push/PR/merge, do not touch other branches, do not delete scratch (list paths), finish everything in the foreground. Do not start a native review; Claude handles it.
 - L11: T7 focused RED exited 1 (6 failed, 16 passed); GREEN exited 0 (22 passed). Independent verification passed S9–S12 (22 focused tests plus 3 isolated probes). Final foreground checks on the T7 source candidate: typecheck exit 0; test exit 0 (40 files, 501 passed, 7 skipped); compile exit 0. Scratch retained: `/tmp/gpdk1azq/gahNwEAz/tmp.dZmAVu7Fr6`. No native review was started. Live VS Code, Revolution and test 1280 validation were not performed.
+- L12 (user, verbatim): "esta es la feature de mejora para que la sección de visualización del esquema de la base de datos que muestra ese diagrama RD, pues prácticamente sí permite la edición de las tablas, añadir tablas, edición de columnas."
+- L13: Delivery strategy remains `feature-branch-chain`, on the existing `feat/db-schema-editor` branch; no push, PR or merge. Native review not requested; run foreground self-review from the default-branch merge base and retain scratch paths. Risk: item 1 (writes `.rev` loaded onto a 1280).
+- L14: T8 focused RED exited 1 for missing focus restoration (13 passed); GREEN exited 0 (15 passed), typecheck exit 0. VM tests are not live VS Code interaction.
+- L15: T9 focused GREEN: 51 passed; typecheck exit 0. Independent S14 recheck on `bc2c8dc`: 7 passed, including watcher refresh, draft/modal preservation and alias interleaving. Retained scratch: `/tmp/gpJKKjH0/gaIgwKGS/tmp.GepJt1zivo` (preparation exited 2, no tests) and `/tmp/gpJKKjH0/gaIgwKGS/tmp.qv157XzGcu` (tests passed).
+- L16: Four foreground self-review lenses inspected `335b9eb..0f2f25b`. Risk and resilience corroborated one blocker: the alphabetical `.rev` fallback could persist changes to the wrong alternate configuration. Correction `a6e92f1` separates read-only fallback from writable selection, names the target in confirmation, and preserves the stale-target guard. Focused RED exit 1 (4 failed, 2 passed); GREEN exit 0 (6 passed). A fresh targeted structural recheck cleared the blocker.
+- L17: Non-blocking findings left unchanged as requested: symlink replacement during atomic save (risk); a byte-identical reverted draft can defer watcher refresh and a failed post-write read may omit backup context (resilience); raw-code rows and neighboring reorder controls are restricted and the reverted-draft issue was corroborated (reliability); README omits refresh deferral and editing-unavailable messaging can misidentify unreadable/invalid `.rev` (readability).
+- L18: Final foreground checks against `a6e92f1`: `npm run typecheck` exit 0; `npm test` exit 0 (46 files, 518 passed, 7 skipped); `npm run compile` exit 0. No native review or mode change. Live VS Code interaction, Revolution import and the test 1280 were not exercised.
