@@ -47,9 +47,9 @@ describe('visual fidelity markup', () => {
  });
  it('shows footer totals, plain record total and problem counts (the validator always reports one unconfirmed-limits warning)', () => {
   const d = new ErdDraft(three); const t = d.view().tables[0];
-  expect(renderErdDraft(d.view())).toMatch(/Storage[\s\S]*120 B \/ 460 MB[\s\S]*Tables[\s\S]*3 \/ 128[\s\S]*Records[\s\S]*<b>30<\/b>[\s\S]*0 errors[\s\S]*1 warnings/);
+  expect(renderErdDraft(d.view())).toMatch(/Storage[\s\S]*120 B \/ 460 MB[\s\S]*Tables[\s\S]*3 \/ 128[\s\S]*Records[\s\S]*<b>30<\/b>[\s\S]*0 errors[\s\S]*1 warning</);
   d.apply({ kind: 'setTable', table: t.key, property: 'name', value: 'bad name' });
-  expect(renderErdDraft(d.view())).toContain('1 errors');
+  expect(renderErdDraft(d.view())).toContain('● 1 error<');
   const big = new ErdDraft({ reservedIndexes: [], tables: [{ index: 1, name: 'B', maxRecords: 115000001, fields: [f('A', 3, 4)] }] }).view();
   expect(renderErdDraft(big)).toContain('2 warnings');
  });

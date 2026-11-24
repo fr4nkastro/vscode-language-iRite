@@ -45,7 +45,7 @@ describe('ERD editing view', () => {
   const html = renderErdHtml(erd, { ...opts, editor: { schema, startEditing: true } });
   expect(html).toContain('let editing = true, available = true'); expect(html).toContain('data-table="draft-1"');
   expect(html).toContain('erd-edit-state'); expect(html).toContain('requestId');
-  expect(html).toContain("kind:'addField', table, name:'', typeCode:3");
+  expect(html).toContain("kind:'addField', table, name:'', typeCode:DEFAULT_NEW_FIELD_TYPE");
   expect(html).toContain("kind:'addTable', name:'', maxRecords:'1'");
   expect(html).not.toContain('foreignObject'); expect(html).toContain('nonce="abc"');
  });

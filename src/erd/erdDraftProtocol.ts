@@ -24,3 +24,6 @@ export function parseErdDraftMessage(raw: unknown): ErdDraftMessage | undefined 
  }
  return valid ? {type:'draft-action',action:a as unknown as ErdDraftAction} : undefined;
 }
+
+/** Integer type code given to every new field (Add field button and Enter shortcut). */
+export const DEFAULT_NEW_FIELD_TYPE = 3;

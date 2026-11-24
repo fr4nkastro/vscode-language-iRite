@@ -5,6 +5,7 @@ import { ErdDraft } from './erdDraft';
 import { renderErdDraft } from './erdDraftHtml';
 import { ERD_DRAFT_STYLE } from './erdDraftStyle';
 import { ERD_DRAFT_SCRIPT } from './erdDraftScript';
+import { plural } from './erdPlural';
 import { fieldType } from '../dbschema/fieldTypes';
 
 export interface ErdHtmlOptions {
@@ -178,7 +179,7 @@ ${ERD_DRAFT_STYLE}
 <header class="erd-topbar"><h1>${heading(opts.title)}</h1>
 <nav class="erd-seg" aria-label="Database views"><button id="diagram-mode" type="button" disabled>Diagram</button><button id="edit-mode" type="button" disabled>Edit schema</button></nav>
 ${view ? '' : `<span class="erd-unavailable">${esc(opts.disabledReason ?? 'No .rev available; schema editing is disabled.')}</span>`}
-<div id="edit-toolbar" class="erd-status" ${editing ? '' : 'hidden'}><span id="edit-count">${view?.count ? `${view.count} pending ${view.count === 1 ? 'change' : 'changes'}` : 'No unsaved changes'}</span><span id="edit-errors" class="erd-errors" ${view?.issues.some(i => i.severity === 'error') ? '' : 'hidden'}>${view ? view.issues.filter(i => i.severity === 'error').length : 0} errors</span><button id="edit-revert" class="erd-secondary" type="button" disabled>Discard</button><button id="edit-save" class="erd-primary" type="button" disabled>Save</button><span id="edit-notice" role="status"></span></div></header>
+<div id="edit-toolbar" class="erd-status" ${editing ? '' : 'hidden'}><span id="edit-count">${view?.count ? `${view.count} pending ${view.count === 1 ? 'change' : 'changes'}` : 'No unsaved changes'}</span><span id="edit-errors" class="erd-errors" ${view?.issues.some(i => i.severity === 'error') ? '' : 'hidden'}>${plural(view ? view.issues.filter(i => i.severity === 'error').length : 0, 'error')}</span><button id="edit-revert" class="erd-secondary" type="button" disabled>Discard</button><button id="edit-save" class="erd-primary" type="button" disabled>Save</button><span id="edit-notice" role="status"></span></div></header>
 ${opts.recoveryMessage ? `<p class="error" role="alert">${esc(opts.recoveryMessage)}</p>` : ''}
 <div id="diagram-view" ${editing ? 'hidden' : ''}>${empty}<svg id="erd" xmlns="http://www.w3.org/2000/svg"><g id="vp"><g id="readonly-view">${readonly}</g></g></svg>${diags}</div>
 <fieldset id="edit-view" ${editing ? '' : 'hidden'} disabled>${view ? renderErdDraft(view) : ''}</fieldset>

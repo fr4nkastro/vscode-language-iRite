@@ -1,5 +1,9 @@
+import { PLURAL_SOURCE } from './erdPlural';
+import { DEFAULT_NEW_FIELD_TYPE } from './erdDraftProtocol';
 /** Browser controller; appended after the diagram navigation script in the nonce-bearing tag. */
 export const ERD_DRAFT_SCRIPT = `
+const plural = (${PLURAL_SOURCE});
+const DEFAULT_NEW_FIELD_TYPE = ${DEFAULT_NEW_FIELD_TYPE};
 const diagramView = document.getElementById('diagram-view');
 const editView = document.getElementById('edit-view');
 const toolbar = document.getElementById('edit-toolbar');
@@ -15,7 +19,7 @@ const readonlyView = document.getElementById('readonly-view');
 let editing = __ERD_EDITING__, available = __ERD_AVAILABLE__, hardDisabled = false;
 let pending = null, modePending = false, aliasPending = false, requestId = 0;
 let queue = [], selected = editView.querySelector('[data-detail]')?.dataset.table, filter = '';
-let draft = null, canSave = false, count = 0, dragging = null, focusNewIn = null;
+let draft = null, canSave = false, count = 0, dragging = null;
 const keyOk = key => typeof key === 'string' && /^draft-[1-9][0-9]{0,15}$/.test(key);
 function updateControls() {
  const busy = !!pending || modePending || queue.length > 0;
@@ -29,7 +33,7 @@ function updateControls() {
  countNode.textContent = count === 0 ? 'No unsaved changes' : count + (count === 1 ? ' pending change' : ' pending changes');
  if (errorsNode) {
   const errors = draft ? draft.issues.filter(i => i.severity === 'error').length : 0;
-  errorsNode.hidden = errors === 0; errorsNode.textContent = errors + (errors === 1 ? ' error' : ' errors');
+  errorsNode.hidden = errors === 0; errorsNode.textContent = plural(errors, 'error');
  }
 }
 function applyFilter() {
@@ -53,7 +57,7 @@ function restoreFocus(focus) {
  node.focus();
  if (focus.start !== null && typeof focus.start === 'number' && node.setSelectionRange) node.setSelectionRange(focus.start, focus.end, focus.direction || 'none');
 }
-function accept(m, render) {
+function accept(m, render, focusTable) {
  draft = m.draft || draft; canSave = !!m.canSave; count = typeof m.count === 'number' ? m.count : count;
  hardDisabled = !!m.disabled;
  if (typeof m.readonly === 'string') readonlyView.innerHTML = m.readonly;
@@ -63,7 +67,7 @@ function accept(m, render) {
   const focus = captureFocus();
   selected = keyOk(m.selected) ? m.selected : undefined;
   editView.innerHTML = m.fragment; applyFilter(); restoreFocus(focus);
-  if (focusNewIn) { focusLastName(focusNewIn); focusNewIn = null; }
+  if (focusTable && typeof m.message !== 'string') focusLastName(focusTable);
  }
 }
 function focusLastName(table) {
@@ -73,11 +77,11 @@ function focusLastName(table) {
 }
 function sendNext() {
  if (pending || modePending || hardDisabled || !editing || !queue.length) { updateControls(); return; }
- const message = queue.shift(); pending = {id:++requestId, message};
+ const next = queue.shift(), message = next.message; pending = {id:++requestId, message, focusTable:next.focusTable};
  vscode.postMessage({type:'erd-edit-request', generation, requestId:pending.id, selected, message});
  updateControls();
 }
-function enqueue(message) { if (!editing || hardDisabled || modePending) return; queue.push(message); sendNext(); }
+function enqueue(message, focusTable) { if (!editing || hardDisabled || modePending) return; queue.push({message, focusTable}); sendNext(); }
 function requestMode(next, force = false) {
  if (!available || hardDisabled || pending || modePending || queue.length || next === editing && !force) return;
  modePending = true; updateControls();
@@ -87,7 +91,7 @@ diagramMode.addEventListener('click', () => requestMode(false));
 editMode.addEventListener('click', () => requestMode(true));
 save.addEventListener('click', () => { if (!save.disabled) enqueue({type:'save'}); });
 discard.addEventListener('click', () => { if (!discard.disabled) enqueue({type:'draft-discard'}); });
-function edit(action) { enqueue({type:'draft-action', action}); }
+function edit(action, focusTable) { enqueue({type:'draft-action', action}, focusTable); }
 function input(e) {
  const node = e.target, d = node.dataset;
  if (d.action === 'filterTables') { filter = node.value; applyFilter(); return; }
@@ -102,8 +106,8 @@ editView.addEventListener('keydown', e => {
  const node = e.target, d = node && node.dataset;
  if (e.key !== 'Enter' || e.isComposing || !editing || hardDisabled || !d || d.action !== 'setField' || d.property !== 'name' || !keyOk(d.table) || !keyOk(d.field)) return;
  const fields = live(d.table);
- if (!fields.length || fields[fields.length - 1].key !== d.field || pending || queue.length || modePending) return;
- e.preventDefault(); focusNewIn = d.table; edit({kind:'addField', table:d.table, name:'', typeCode:3});
+ if (!fields.length || fields[fields.length - 1].key !== d.field) return;
+ e.preventDefault(); edit({kind:'addField', table:d.table, name:'', typeCode:DEFAULT_NEW_FIELD_TYPE}, d.table);
 });
 function live(table) { return draft?.tables.find(t => t.key === table && !t.removed)?.fields.filter(f => !f.removed) || []; }
 function move(table, field, to) {
@@ -118,7 +122,7 @@ editView.addEventListener('click', e => {
  if (d.action === 'selectTable' && keyOk(table)) { selected = table; enqueue({type:'draft-get'}); return; }
  if (d.action === 'addTable') { edit({kind:'addTable', name:'', maxRecords:'1'}); return; }
  if (!keyOk(table)) return;
- if (d.action === 'addField') edit({kind:'addField', table, name:'', typeCode:3});
+ if (d.action === 'addField') edit({kind:'addField', table, name:'', typeCode:DEFAULT_NEW_FIELD_TYPE});
  else if (d.action === 'removeTable' || d.action === 'restoreTable') edit({kind:d.action, table});
  else if ((d.action === 'removeField' || d.action === 'restoreField') && keyOk(field)) edit({kind:d.action, table, field});
  else if (d.action === 'moveField' && keyOk(field)) { const fields = live(table), from = fields.findIndex(f => f.key === field); move(table, field, from + (d.direction === 'up' ? -1 : 1)); }
@@ -148,7 +152,7 @@ window.addEventListener('message', e => {
   return;
  }
  if (m.type !== 'erd-edit-state' || !pending || m.requestId !== pending.id) return;
- pending = null; accept(m, !queue.length); if (hardDisabled) queue = [];
+ const done = pending; pending = null; accept(m, !queue.length, done.focusTable); if (hardDisabled) queue = [];
  sendNext();
  if (!pending && !queue.length && aliasPending) { aliasPending = false; requestMode(true, true); }
 });

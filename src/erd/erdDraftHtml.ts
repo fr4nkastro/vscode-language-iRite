@@ -1,16 +1,14 @@
 import type { ErdDraft, DraftIssue } from './erdDraft';
 import { editableFieldType, fieldTypes } from '../dbschema/fieldTypes';
-import { MAX_FIELDS, MAX_RECORDS, MAX_TABLES } from '../dbschema/limits';
+import { MAX_FIELDS, MAX_NAME_LENGTH, MAX_RECORDS, MAX_TABLES } from '../dbschema/limits';
+import { plural } from './erdPlural';
 import { formatBytes } from './erdByteFormat';
 
 type View = Omit<ReturnType<ErdDraft['view']>, 'schema'>;
 type Table = View['tables'][number];
 type Field = Table['fields'][number];
 const esc = (value: unknown): string => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-const bytes = (value: number | undefined): string => formatBytes(value);
 const count = (value: number | undefined): string => value === undefined ? 'Unknown' : value.toLocaleString('en-US');
-/** Designer table/field name limit, as enforced by the shared validator. */
-const MAX_NAME = 8;
 const state = (row: { removed: boolean; added: boolean; dirty: boolean; reordered?: boolean }): string => row.removed ? 'removed' : row.added ? 'added' : row.dirty || row.reordered ? 'changed' : '';
 const messages = (issues: DraftIssue[]): string => issues.map(i => `<div class="draft-issue is-${esc(i.severity)}">${esc(i.message)}</div>`).join('');
 const issuesAt = (view: View, table: string, field: string | undefined, property?: DraftIssue['property']): DraftIssue[] => view.issues.filter(i => i.table === table && i.field === field && i.property === property);
@@ -34,16 +32,16 @@ function fieldRow(view: View, table: Table, field: Field, ordinal: number): stri
  const keys = attrs(table.key, field.key), status = state(field), type = editableFieldType(field.typeCode);
  const disabled = table.removed || field.removed || !type ? ' disabled' : '';
  const options = (type ? '' : `<option value="${esc(field.typeCode)}" selected>Unknown (${esc(field.typeCode)})</option>`) + fieldTypes.filter(t => t.code !== 0).map(t => `<option value="${t.code}"${t.code === field.typeCode ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
+ const found = { name: issuesAt(view, table.key, field.key, 'name'), size: issuesAt(view, table.key, field.key, 'size') };
  const input = (property: 'name' | 'size', value: string, readonly = false) => {
-  const found = issuesAt(view, table.key, field.key, property), bad = found.some(i => i.severity === 'error');
+  const bad = found[property].some(i => i.severity === 'error');
   return `<input aria-label="Field ${property}" data-action="setField" ${keys} data-property="${property}" value="${esc(value)}"${bad ? ' aria-invalid="true" class="is-invalid"' : ''}${readonly ? ' readonly' : ''}${disabled}>`;
  };
- const problems = (property: 'name' | 'size') => messages(issuesAt(view, table.key, field.key, property));
  const moveOff = table.removed || !type ? ' disabled' : '';
  const actions = field.removed
   ? iconButton('restoreField', 'Restore field', 'restore', keys, table.removed ? ' disabled' : '')
   : iconButton('moveField', 'Move field up', 'up', keys, ` data-direction="up"${moveOff}`) + iconButton('moveField', 'Move field down', 'down', keys, ` data-direction="down"${moveOff}`) + iconButton('removeField', 'Remove field', 'remove', keys, table.removed ? ' disabled' : '');
- return `<tr class="${status ? `is-${status}` : ''}" data-field-row ${keys} draggable="${!table.removed && !field.removed && !!type}"><td class="col-grip" aria-hidden="true">${icon('grip')}</td><td class="col-idx">${field.removed ? '' : ordinal}</td><td><div class="cell-name">${input('name', field.name)}${status ? `<span class="draft-status">${esc(status)}</span>` : ''}</div>${problems('name')}</td><td><select aria-label="Field type" data-action="setField" ${keys} data-property="typeCode"${disabled}>${options}</select>${messages(issuesAt(view, table.key, field.key, 'typeCode'))}</td><td class="col-num">${input('size', field.size, !type?.variable)}${problems('size')}</td><td class="col-num col-bytes">${esc(bytes(sizeNumber(field.size)))}</td><td class="col-acts">${actions}</td></tr>`;
+ return `<tr class="${status ? `is-${status}` : ''}" data-field-row ${keys} draggable="${!table.removed && !field.removed && !!type}"><td class="col-grip" aria-hidden="true">${icon('grip')}</td><td class="col-idx">${field.removed ? '' : ordinal}</td><td><div class="cell-name">${input('name', field.name)}${status ? `<span class="draft-status">${esc(status)}</span>` : ''}</div>${messages(found.name)}</td><td><select aria-label="Field type" data-action="setField" ${keys} data-property="typeCode"${disabled}>${options}</select>${messages(issuesAt(view, table.key, field.key, 'typeCode'))}</td><td class="col-num">${input('size', field.size, !type?.variable)}${messages(found.size)}</td><td class="col-num col-bytes">${esc(formatBytes(sizeNumber(field.size)))}</td><td class="col-acts">${actions}</td></tr>`;
 }
 function detail(view: View, table: Table): string {
  const keys = attrs(table.key), disabled = table.removed ? ' disabled' : '';
@@ -53,9 +51,9 @@ function detail(view: View, table: Table): string {
  };
  const live = table.fields.filter(f => !f.removed).length;
  let ordinal = 0;
- const stats = `<div class="draft-stats"><span>Fields <b>${live}</b>/${MAX_FIELDS}</span><span>Record <b>${esc(bytes(table.recordBytes))}</b></span><span>Table <b>${esc(bytes(table.totalBytes))}</b></span></div>`;
+ const stats = `<div class="draft-stats"><span>Fields <b>${live}</b>/${MAX_FIELDS}</span><span>Record <b>${esc(formatBytes(table.recordBytes))}</b></span><span>Table <b>${esc(formatBytes(table.totalBytes))}</b></span></div>`;
  const tableAction = table.removed ? iconButton('restoreTable', 'Restore table', 'restore', keys) : iconButton('removeTable', 'Remove table', 'remove', keys);
- return `<section class="draft-detail" data-detail ${keys}><div class="draft-thead">${input('name', 'Table name', table.name, `${table.name.length}/${MAX_NAME} chars`)}${input('maxRecords', 'Max records', table.maxRecords, `up to ${count(MAX_RECORDS)}`)}${stats}<div class="draft-tbl-actions">${tableAction}</div></div>${messages(issuesAt(view, table.key, undefined, 'fields'))}<table class="draft-cols"><thead><tr><th class="col-grip"></th><th class="col-idx">#</th><th>Name</th><th>Type</th><th class="col-num">Size</th><th class="col-num col-bytes">Bytes</th><th class="col-acts"><span class="draft-sr">Actions</span></th></tr></thead><tbody>${table.fields.map(f => fieldRow(view, table, f, f.removed ? 0 : ++ordinal)).join('')}</tbody></table><div class="draft-addrow">${button('addField', `${icon('add')}<span>Add field</span>`, keys, ` class="draft-link"${disabled}`)}<span class="draft-hint">or press <kbd>Enter</kbd> in the last field name</span></div></section>`;
+ return `<section class="draft-detail" data-detail ${keys}><div class="draft-thead">${input('name', 'Table name', table.name, `${table.name.length}/${MAX_NAME_LENGTH} chars`)}${input('maxRecords', 'Max records', table.maxRecords, `up to ${count(MAX_RECORDS)}`)}${stats}<div class="draft-tbl-actions">${tableAction}</div></div>${messages(issuesAt(view, table.key, undefined, 'fields'))}<table class="draft-cols"><thead><tr><th class="col-grip"></th><th class="col-idx">#</th><th>Name</th><th>Type</th><th class="col-num">Size</th><th class="col-num col-bytes">Bytes</th><th class="col-acts"><span class="draft-sr">Actions</span></th></tr></thead><tbody>${table.fields.map(f => fieldRow(view, table, f, f.removed ? 0 : ++ordinal)).join('')}</tbody></table><div class="draft-addrow">${button('addField', `${icon('add')}<span>Add field</span>`, keys, ` class="draft-link"${disabled}`)}<span class="draft-hint">or press <kbd>Enter</kbd> in the last field name</span></div></section>`;
 }
 /** Fragment only: host owns event handling, filter persistence, and the outer CSP. */
 export function renderErdDraft(view: View, selected?: string): string {
@@ -63,11 +61,11 @@ export function renderErdDraft(view: View, selected?: string): string {
  const biggest = Math.max(1, ...view.tables.map(t => t.totalBytes ?? 0));
  const list = view.tables.map(t => {
   const status = state(t), live = t.fields.filter(f => !f.removed).length, errors = view.issues.filter(i => i.table === t.key && i.severity === 'error').length, isCurrent = current?.key === t.key;
-  const dot = errors ? `<span class="draft-dot is-error" role="img" aria-label="${errors} errors"></span>` : status ? `<span class="draft-dot is-${status}" role="img" aria-label="${status}"></span>` : '';
+  const dot = errors ? `<span class="draft-dot is-error" role="img" aria-label="${plural(errors, 'error')}"></span>` : status ? `<span class="draft-dot is-${status}" role="img" aria-label="${status}"></span>` : '';
   const bar = t.totalBytes === undefined ? '' : `<progress class="t-bar" value="${esc(t.totalBytes)}" max="${biggest}" aria-hidden="true"></progress>`;
-  return `<li class="${[status ? `is-${status}` : '', isCurrent ? 'is-selected' : ''].filter(Boolean).join(' ')}"><button type="button" data-action="selectTable" ${attrs(t.key)}${isCurrent ? ' aria-current="true"' : ''}><span class="t-name">${esc(t.name)}${dot}</span><span class="t-meta">${live} fields · ${esc(bytes(t.totalBytes))}</span>${bar}</button></li>`;
+  return `<li class="${[status ? `is-${status}` : '', isCurrent ? 'is-selected' : ''].filter(Boolean).join(' ')}"><button type="button" data-action="selectTable" ${attrs(t.key)}${isCurrent ? ' aria-current="true"' : ''}><span class="t-name">${esc(t.name)}${dot}</span><span class="t-meta">${live} fields · ${esc(formatBytes(t.totalBytes))}</span>${bar}</button></li>`;
  }).join('');
  const meter = (label: string, text: string, value: number | undefined, max: number, over = false) => `<div class="draft-meter${over ? ' is-over' : ''}"><span>${label}</span>${value === undefined ? '' : `<progress value="${esc(Math.min(value, max))}" max="${max}"></progress>`}<b>${esc(text)}</b></div>`;
  const b = view.budget, errors = view.issues.filter(i => i.severity === 'error').length, warnings = view.issues.filter(i => i.severity === 'warning').length + (b.overThreshold ? 1 : 0);
- return `<div class="erd-draft"><div class="draft-layout"><aside><div class="draft-side-head"><span>Tables <span class="draft-pill">${view.budget.tables}/${MAX_TABLES}</span></span>${iconButton('addTable', 'Add table', 'add', '')}</div><div class="draft-filter"><input type="search" data-action="filterTables" aria-label="Filter tables" placeholder="Filter tables"></div><ul class="draft-list">${list}</ul></aside>${current ? detail(view, current) : '<section class="draft-detail">No table selected.</section>'}</div><div class="draft-global-issues">${messages(view.issues.filter(i => i.table === undefined))}</div><footer class="draft-budget">${meter('Storage', `${bytes(b.bytes)} / ${bytes(b.threshold)}`, b.bytes, b.threshold, b.overThreshold)}${meter('Tables', `${b.tables} / ${MAX_TABLES}`, b.tables, MAX_TABLES)}<div class="draft-meter"><span>Records (all tables)</span><b>${esc(count(b.records))}</b></div>${b.overThreshold ? '<span class="draft-issue is-warning">Designer byte threshold exceeded (warning).</span>' : ''}<span class="draft-problems"><span class="is-error">● ${errors} errors</span><span class="is-warning">▲ ${warnings} warnings</span></span></footer></div>`;
+ return `<div class="erd-draft"><div class="draft-layout"><aside><div class="draft-side-head"><span>Tables <span class="draft-pill">${view.budget.tables}/${MAX_TABLES}</span></span>${iconButton('addTable', 'Add table', 'add', '')}</div><div class="draft-filter"><input type="search" data-action="filterTables" aria-label="Filter tables" placeholder="Filter tables"></div><ul class="draft-list">${list}</ul></aside>${current ? detail(view, current) : '<section class="draft-detail">No table selected.</section>'}</div><div class="draft-global-issues">${messages(view.issues.filter(i => i.table === undefined))}</div><footer class="draft-budget">${meter('Storage', `${formatBytes(b.bytes)} / ${formatBytes(b.threshold)}`, b.bytes, b.threshold, b.overThreshold)}${meter('Tables', `${b.tables} / ${MAX_TABLES}`, b.tables, MAX_TABLES)}<div class="draft-meter"><span>Records (all tables)</span><b>${esc(count(b.records))}</b></div>${b.overThreshold ? '<span class="draft-issue is-warning">Designer byte threshold exceeded (warning).</span>' : ''}<span class="draft-problems"><span class="is-error">● ${plural(errors, 'error')}</span><span class="is-warning">▲ ${plural(warnings, 'warning')}</span></span></footer></div>`;
 }

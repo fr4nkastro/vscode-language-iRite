@@ -1,6 +1,7 @@
 import type { RevDbField, RevModel } from "../rev";
 import { editableFieldType } from './fieldTypes';
-import { MAX_TABLES, MAX_FIELDS, MAX_RECORDS, MAX_STRING_SIZE } from './limits';
+import { MAX_TABLES, MAX_FIELDS, MAX_RECORDS, MAX_STRING_SIZE, MAX_NAME_LENGTH } from './limits';
+const NAME_PATTERN = new RegExp(`^[A-Za-z_][A-Za-z0-9_]{0,${MAX_NAME_LENGTH - 1}}$`);
 
 /** Original positions address the decoded DB.SCHEMA tokens, even after reorder. */
 export interface FieldSource { tableIndex: number; fieldIndex: number }
@@ -91,7 +92,7 @@ export function validateDbSchema(model: DbSchema, baseline?: DbSchema, sink?: (i
  emit('warning', "Firmware enforcement, storage overhead and per-table memory limits are unconfirmed; validate in Revolution and on a test indicator before production.");
  const names = new Set<string>();
  const identifier = (name: string, what: string, seen: Set<string>, unchanged: boolean, location: Location) => {
-  if (!unchanged && (!/^[A-Za-z_][A-Za-z0-9_]{0,7}$/.test(name) || /[\r\n]/.test(name) || keywords.has(name.toLowerCase()))) emit('error', `${what}: invalid or missing iRite identifier (maximum 8 ASCII characters)`, location);
+  if (!unchanged && (!NAME_PATTERN.test(name) || /[\r\n]/.test(name) || keywords.has(name.toLowerCase()))) emit('error', `${what}: invalid or missing iRite identifier (maximum ${MAX_NAME_LENGTH} ASCII characters)`, location);
   const key = name.toLowerCase(); if (seen.has(key)) emit('error', `${what}: duplicate name`, location); seen.add(key);
  };
  const positive = (n: number, what: string, location: Location) => { if (!Number.isSafeInteger(n) || n <= 0) emit('error', `${what} must be a positive safe integer`, location); };
