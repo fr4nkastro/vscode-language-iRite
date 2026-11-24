@@ -14,14 +14,21 @@ C:\Users\Allan Castro\Downloads\1280-firmware-pn162123-version-2_09_04\update"
 - S7 Docs: readme.md (import, cache location, images not shipped), CHANGELOG.md (Unreleased), AGENTS.md, docs/rev-format.md (`local://` facts, clean-room, cite evidence source).
 - S8 IP: no firmware file or PNG in commits, `.vsix` (`npx vsce ls --no-dependencies`), fixtures, docs or repo screenshots. Tests use synthetic tars and PNGs generated in the tests.
 - S9 Checks: `npm run typecheck`, `npm test`, `npm run compile`, `npx vsce ls --no-dependencies`; headless Edge on a scratch copy of DOLE with a real import into a scratch global storage, images render (screenshots in scratch).
+- S10 (F1, review R3-002, `src/firmware/imageCache.ts:91`): "Numeric version segments with different zero padding compare equal immediately, without examining subsequent segments. For example, versions 2.09.04 and 2.9.10 are ordered by import timestamp rather than by the final numeric segment, so the default selection can show images from the older firmware. Continue comparing when numeric segment values are equal."
+- S11 (F2, review R4-001, `src/firmware/tarReader.ts:188`): "A firmware archive truncated exactly between entries is treated as complete. If it contains at least one image, re-importing it replaces the previously complete cache for that firmware version with the partial extraction and reports success. Preserve the previous cache when archive completeness cannot be established, or explicitly require confirmation before replacing it." Decision: preserve the previous cache and report an error when completeness cannot be established (no confirmation dialog).
+- S12 (F3, review R4-002, `src/commands/firmwareImages.ts:25`): "The success notification omits rejected-image counts. A re-import containing some invalid or oversized images therefore replaces the previous version with a partial cache while telling the user only that the import succeeded; missing images later appear as placeholders without identifying the import problem. Surface the rejection counts and avoid silently replacing a good cache with a degraded one." Decision: show rejected counts in the notification; when a re-import of an existing version yields fewer usable images than the current cache, keep the current cache and warn.
 
 ## Tasks
 
 - T1 S2 — REA/firmware analysis, findings into the report draft. Route: gentle-ai-worker (read-only on firmware, scratch extraction). Risk: none. Commit: with T5.
 - T2 S3,S4,S8 — pure tar reader, entry filter/validation, manifest parse, cache layout, resolution, gallery model + vitest (synthetic tars/PNGs). Route: gentle-ai-worker. Risk: item 2 (validates user-selected archive paths before extracting). Commit: d99b105
 - T3 S3,S5,S6,S7 — VS Code command, setting, Webview preview and editor, SVG, CLI, and docs. Route: gentle-ai-worker in slices. Risk: item 2 (changes Webview resource roots and message boundaries). Commit: 9c4ecad, 596ebcd, 883380e
-- T4 S8,S9 — full checks + headless Edge on DOLE scratch with real import. Route: gentle-ai-worker; independent verification of the archive and Webview boundaries. Risk: item 2 (archive and Webview boundaries). Commit: with T5.
+- T4 S1-S9 — independent whole-feature verification from `335b9eb886da57d5d09a9f648dea82562324c90c`; full checks and existing DOLE smoke evidence. Route: gentle-ai-verify; one correction batch if needed.
+  Risk: item 2 (editor resource path confinement and tar extraction)
 - T5 S1-S9 — report `odd/reports/firmware-local-images.md`, commits. Route: inline. Risk: none. Commit: documentation slice containing this file.
+- T6 S10 — version comparison continues past numerically equal segments. Route: gentle-ai-worker, test-first. Risk: none (pure ordering of imported versions). Commit: —
+- T7 S11 — incomplete archive (no end-of-archive marker) fails the import and keeps the previous cache. Route: gentle-ai-worker, test-first. Risk: item 1 (replacing an existing firmware image cache). Commit: —
+- T8 S12 — rejected counts in the notification; a degraded re-import keeps the current cache and warns. Route: gentle-ai-worker, test-first. Risk: item 1 (replacing an existing firmware image cache). Commit: —
 
 ## Log
 
@@ -31,3 +38,4 @@ C:\Users\Allan Castro\Downloads\1280-firmware-pn162123-version-2_09_04\update"
 - L3 S5 refinement: `src/rev/widgetCatalog.ts` defines a file path for type 7 Image but only a style enum for type 2 Bitmap. Limit the file gallery to type 7 and retain the Bitmap style control; do not invent a file token the format cannot persist.
 - L4 Delivery boundary: branch base `335b9eb`; streaming core, VS Code, SVG/CLI, and resource confinement are separate commits. The initial core slice is 1,167 inserted lines including its synthetic fixtures and tests, over the nominal 400-line target. No push or PR.
 - L5 Windows checks passed on `883380e`: 44 files, 528 tests passed, 7 skipped; typecheck, compile, package inventory and diff check exited 0. Earlier real-firmware Edge builder smoke passed. T4 remains open: independent isolation timed out, and native review requires human consent. See the report for scope and retained scratch paths.
+- L6 Native review `review-17b629aacf80b312` approved and acknowledged after correction `7bc73e2` (R3-001). User request: close the three non-blocking findings R3-002, R4-001, R4-002 as S10-S12 with the decisions quoted there, each test-first in its own commit; T7/T8 carry Risk item 1.
