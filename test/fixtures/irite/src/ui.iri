@@ -1,0 +1,12 @@
+(* Screen handlers
+   spanning lines *)
+procedure Beep;
+begin
+end;
+
+handler WidgetClicked;
+    begin
+        if EventWidget = lbStat then
+            SetLabelText(lbStat, "a, b (c)");
+        end if;
+    end;

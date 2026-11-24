@@ -9,7 +9,7 @@
 		"theme": "dark"
 	},
 	"engines": {
-		"vscode": "^1.0.0"
+		"vscode": "^1.85.0"
 	},
 	"categories": [
 		"Programming Languages",
@@ -22,7 +22,7 @@
 	],
 	"activationEvents": [
 		"onLanguage:irite",
-		"onCommand:irite.build"
+		"workspaceContains:**/main.src"
 	],
 	"main": "./dist/extension.js",
 	"icon": "images/icon.png",
@@ -75,6 +75,18 @@
 					"when": "resourceLangId == irite",
 					"command": "irite.deploy",
 					"group": "navigation"
+				},
+				{
+					"when": "resourceExtname =~ /\\.rev$/i",
+					"command": "irite.previewScreens",
+					"group": "navigation"
+				}
+			],
+			"explorer/context": [
+				{
+					"when": "resourceExtname =~ /\\.rev$/i",
+					"command": "irite.previewScreens",
+					"group": "navigation"
 				}
 			]
 		},
@@ -101,6 +113,26 @@
 				"command": "irite.deploy",
 				"title": "iRite: Deploy",
 				"description": "Deploy to Indicator"
+			},
+			{
+				"command": "irite.previewScreens",
+				"title": "iRite: Preview Screens",
+				"description": "Preview the 1280 screens of a Revolution .rev file (read-only)"
+			},
+			{
+				"command": "irite.showErd",
+				"title": "iRite: Show Database Diagram",
+				"description": "Entity-relationship diagram of the iRite databases and the .rev schema (read-only)"
+			},
+			{
+				"command": "irite.showSfc",
+				"title": "iRite: Show Sequence Diagram (SFC)",
+				"description": "Grafcet-style diagram of the STATES/TRANSITIONS state machine (read-only)"
+			},
+			{
+				"command": "irite.generateDocs",
+				"title": "iRite: Generate Project Docs",
+				"description": "Write Markdown documentation (ERD, SFC, screens, routines) to docs/generated/ (never touches .rev or sources)"
 			}
 		],
 		"configuration": {
@@ -125,41 +157,41 @@
 					"type": "string",
 					"default": "C:\\Program Files (x86)\\Rice Lake Weighing Systems\\Revolution\\iRite Editor\\Compilers",
 					"description": "Path to the Compilers folder, as seen by the engine (Windows-style path, even under Wine on Linux/macOS)"
+				},
+				"irite.sfc.statesEnum": {
+					"type": "string",
+					"default": "",
+					"description": "Name of the enum holding the SFC steps. Empty = STATES."
+				},
+				"irite.sfc.transitionsEnum": {
+					"type": "string",
+					"default": "",
+					"description": "Name of the enum holding the SFC transitions. Empty = TRANSITIONS."
+				},
+				"irite.sfc.initialStep": {
+					"type": "string",
+					"default": "",
+					"description": "Initial SFC step. Empty = a step named Standby/Idle/Init, else the first one."
 				}
 			}
 		}
 	},
 	"scripts": {
-		"vscode:prepublish": "cross-env NODE_OPTIONS=--openssl-legacy-provider webpack --mode production",
-		"compile": "cross-env NODE_OPTIONS=--openssl-legacy-provider webpack --mode none",
-		"postinstall": "node ./node_modules/vscode/bin/install",
-		"watch": "cross-env NODE_OPTIONS=--openssl-legacy-provider webpack --mode none --watch",
-		"test-compile": "tsc -p ./"
+		"vscode:prepublish": "npm run typecheck && node esbuild.mjs --production",
+		"compile": "node esbuild.mjs",
+		"watch": "node esbuild.mjs --watch",
+		"typecheck": "tsc -p ./",
+		"test": "vitest run",
+		"package": "vsce package --no-dependencies"
 	},
-	"dependencies": {
-		"@types/node": "^14.14.43",
-		"anymatch": "^3.1.2",
-		"base": "^3.0.0",
-		"chokidar": "^3.5.1",
-		"exec": ">=0.2.1",
-		"expand-brackets": ">=4.0.0",
-		"extglob": ">=3.0.0",
-		"findup-sync": "^4.0.0",
-		"mkdirp": "^1.0.4",
-		"mocha": "^7.2.0",
-		"opener": "^1.5.2",
-		"promise": "^8.1.0",
-		"thenable": "^1.0.0"
-	},
+	"dependencies": {},
 	"devDependencies": {
-		"cross-env": "^10.1.0",
-		"event-stream": ">=3.3.4",
-		"snapdragon": "^0.12.1",
-		"ts-loader": "^8.2.0",
-		"typescript": "^4.2.4",
-		"vscode": "^1.1.37",
-		"webpack": "^4.46.0",
-		"webpack-cli": "^3.3.12"
+		"@types/node": "^20.11.0",
+		"@types/vscode": "~1.85.0",
+		"@vscode/vsce": "^3.2.0",
+		"esbuild": "^0.25.0",
+		"typescript": "^5.6.0",
+		"vitest": "^3.0.0"
 	},
 	"__metadata": {
 		"id": "401502c8-a9ea-4f6b-b64a-4d4144edbd1a",

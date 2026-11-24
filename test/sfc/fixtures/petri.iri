@@ -1,0 +1,83 @@
+type STATES is (NullState, Standby, Ask, Wait, Done, Orphan);
+type TRANSITIONS is (NullTransition, Start, Confirm, Capture, Abandon, Release, Clear, Unused);
+
+procedure HandlerTransitions(m: integer; s: integer);
+    CurrentTransition: TRANSITIONS;
+    begin
+        CurrentTransition := GetTransition(m, s);
+        if CurrentTransition = Start then
+            SetState(m, s, Ask);
+        elsif CurrentTransition = Confirm then
+            SetState(m, s, Wait);
+        elsif CurrentTransition = Capture then
+            SetState(m, s, Done);
+        elsif CurrentTransition = Abandon then
+            SetState(m, s, Standby);
+        elsif CurrentTransition = Release then
+            SetState(m, s, Standby);
+        elsif CurrentTransition = Clear then
+            SetState(m, s, Standby);
+        elsif CurrentTransition = Unused then
+            SetState(m, s, Orphan);
+        end if;
+        HandlerStates(m, s);
+    end;
+
+procedure HandlerStates(m: integer; s: integer);
+    begin
+        if GetState(m, s) = Standby then
+            CmdStandby(m, s);
+        elsif GetState(m, s) = Ask then
+            CmdAsk(m, s);
+        elsif GetState(m, s) = Wait then
+            CmdWait(m, s);
+        end if;
+    end;
+
+procedure CmdStandby(m: integer; s: integer);
+    begin
+        if GetWeight(1) > 10 then
+            CmdSetTransition(m, s, Start);
+        end if;
+    end;
+
+procedure CmdAsk(m: integer; s: integer);
+    begin
+        Beep;
+    end;
+
+procedure CmdWait(m: integer; s: integer);
+    begin
+        Beep;
+    end;
+
+procedure Monitor(m: integer; s: integer);
+    tState: STATES;
+    begin
+        tState := GetState(m, s);
+        if tState = Ask or tState = Wait then
+            if GetWeight(1) < 0 then
+                CmdSetTransition(m, s, Abandon);
+            elsif tState = Wait then
+                if IsStable(1) then
+                    CmdSetTransition(m, s, Capture);
+                end if;
+            end if;
+        elsif tState = Done then
+            SetHandlerTransition(m, s, Release);
+        end if;
+    end;
+
+procedure ConfirmPlate(m: integer; s: integer);
+    begin
+        if GetState(m, s) <> Ask then
+            DisplayStatus("not now");
+            return;
+        end if;
+        CmdSetTransition(m, s, Confirm);
+    end;
+
+procedure ResetAll(m: integer; s: integer);
+    begin
+        CmdSetTransition(m, s, Clear);
+    end;

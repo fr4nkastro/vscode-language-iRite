@@ -1,0 +1,15 @@
+type STATES is (
+    NullState,
+    Standby,   -- idle
+    (* waiting for a plate *)
+    PlateRequest,
+    Finished
+);
+
+type TRANSITIONS is (NullTransition, Start, Clear, Finish);
+
+type Status is record
+    Screen : integer;
+    Machine, Scale : integer;
+    Label : string[20];
+end record;
