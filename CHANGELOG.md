@@ -1,9 +1,9 @@
 ChangeLog
 =========
 
-#### Unreleased
+#### 2.15.0
 - **Minimum VS Code is now 1.95** (`engines.vscode` and `@types/vscode` raised from 1.85); older builds will not install this version.
-- New Language Model tools for Copilot Chat agent mode and other in-IDE agents (read side): `irite_screens`, `irite_widgets`, `irite_diagnose` and `irite_dbSchema`, referenced with `#iriteScreens`, `#iriteWidgets`, `#iriteDiagnose`, `#iriteDbSchema`. They reuse the headless CLI core, accept only paths inside the open workspace folders, and `irite_diagnose` also returns the live entries of the `irite-sfc` and `irite-db-access` Problems collections. Not verified in a live Copilot Chat session.
+- New Language Model tools for Copilot Chat agent mode and other in-IDE agents (read side): `irite_screens`, `irite_widgets`, `irite_diagnose` and `irite_dbSchema`, referenced with `#iriteScreens`, `#iriteWidgets`, `#iriteDiagnose`, `#iriteDbSchema`. They reuse the headless CLI core, accept only paths inside the open workspace folders, and `irite_diagnose` also returns the live entries of the `irite-sfc` and `irite-db-access` Problems collections.
 - Copilot Chat write tools cover widget edits, database schema edits, and explicit `.iri` regeneration. They preview by default and require a separate native VS Code confirmation for each apply, even with Copilot auto-approval. They refuse stale inputs and use the headless CLI's backup, atomic write, and readback checks.
 
 #### 2.14.0

@@ -243,7 +243,7 @@ document in VS Code must be saved or closed first. The tools reuse the CLI's
 backup, atomic replacement and readback behavior, and return a JSON result,
 including the backup path when one is created.
 
-Not yet verified in a live Copilot Chat session, Revolution, or on a 1280.
+Copilot Chat Agent mode was smoke-tested in VS Code. Edited files are not yet verified in Revolution or on a 1280.
 
 #### Headless CLI (for agents and scripts)
 
