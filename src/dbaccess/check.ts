@@ -112,3 +112,25 @@ export function formatTableMessage(t: TableReport, maxNames = 8): string {
 	}
 	return parts.length === 0 ? '' : `Table ${t.table}: ${parts.join('; ')}`;
 }
+
+export interface TableDiagnostic {
+	table: string;
+	/** Location of the `type T is database` line (1-based). */
+	file: string;
+	line: number;
+	message: string;
+	/** Number of routines still missing (pending stubs are not counted). */
+	missing: number;
+}
+
+/** One diagnostic per incomplete table: what the extension publishes to Problems and what `rev-cli diagnose` prints. */
+export function tableDiagnostics(report: DbAccessReport): TableDiagnostic[] {
+	const out: TableDiagnostic[] = [];
+	for (const t of report.tables) {
+		const message = formatTableMessage(t);
+		if (message !== '') {
+			out.push({ table: t.table, file: t.file, line: t.line, message, missing: t.items.filter(i => i.status === 'missing').length });
+		}
+	}
+	return out;
+}

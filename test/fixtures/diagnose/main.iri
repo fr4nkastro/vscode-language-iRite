@@ -1,0 +1,26 @@
+-- trimmed from the DOLE generated main.iri (database declarations only)
+type VehiclesDatabase is database ("Vehicles")
+   TruckId: String;
+    CustID: String;
+end database;
+type TransDatabase is database ("Trans")
+        Id: Integer;
+    Ticket: Integer;
+  InWeight: Real;
+      NetW: Real;
+end database;
+type SettingsDatabase is database ("Settings")
+        Id: Integer;
+   WThresh: Real;
+  IsSensor: Integer;
+end database;
+
+Vehicles_TruckId : constant integer := 1;
+Vehicles_CustID  : constant integer := 2;
+Trans_Id         : constant integer := 1;
+Trans_Ticket     : constant integer := 2;
+Trans_InWeight   : constant integer := 3;
+Trans_NetW       : constant integer := 4;
+Settings_Id      : constant integer := 1;
+Settings_WThresh : constant integer := 2;
+Settings_IsSensor: constant integer := 3;

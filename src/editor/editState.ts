@@ -232,6 +232,11 @@ export function effectiveWidgets(rev: RevModel, state: EditState): EffectiveWidg
 	return out;
 }
 
+/** The widget list as `main.iri` sees it: widgets that have an alias there (shared by the screen editor and the CLI). */
+export function aliasEntries(rev: RevModel, state: EditState): Array<{ id: number; alias: string }> {
+	return effectiveWidgets(rev, state).flatMap((w) => (w.alias ? [{ id: w.id, alias: w.alias }] : []));
+}
+
 function lineTooLong(id: number, tokens: readonly string[]): string | undefined {
 	const n = tokens.join(",").length;
 	return n > WIDGET_VALUE_MAX ? `Widget ${id}: the line would have ${n} characters, the maximum is ${WIDGET_VALUE_MAX}` : undefined;

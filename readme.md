@@ -201,12 +201,18 @@ Right-click a `.rev` and choose **iRite: Edit Screens** (or "Open With..." >
 
 #### Headless CLI (for agents and scripts)
 
-`dist/rev-cli.js` (bundled with the extension, no dependencies, read-only):
+`dist/rev-cli.js` (bundled with the extension, no dependencies). The read
+commands never modify the file; the `widget` and `db` commands write only with `--write`:
 
 ```
 node rev-cli.js screens <file.rev>
 node rev-cli.js widgets <file.rev> [--screen n] [--panel 7|12]
 node rev-cli.js render  <file.rev> --screen n [--panel 7|12] [--out screen.svg] [--firmware-images <dir>]
+node rev-cli.js widget set <file.rev> <id> <field>=<value>... [--write] [--expect-hash <sha256>]
+node rev-cli.js widget add <file.rev> <type> --screen n [field=value...] [--write] [--expect-hash <sha256>]
+node rev-cli.js widget rm  <file.rev> <id> [--force] [--write] [--expect-hash <sha256>]
+node rev-cli.js regen-iri <file.rev> [--write] [--expect-hash <sha256>]
+node rev-cli.js diagnose <project-dir|file.rev|main.src>
 ```
 
 `screens` and `widgets` print JSON (type name, named properties `props`, boxes,
@@ -222,6 +228,89 @@ Rendered built-ins use absolute `file:` URIs, not copies;
 viewers may restrict local file access and the SVG is not portable without the
 cache. Generated project documentation uses the selected cache's 7-inch variant
 in the same way; regenerate it after importing.
+
+**Widget write commands** use the screen editor's own rules (widget catalog
+fields, ranges and enums, id and alias rules, `<=` 255 characters per line):
+`set` changes editable fields by catalog name (as listed in `props` of
+`widgets`), `add` takes the lowest free id (1..999), the catalog defaults and
+the default alias (`lbl7`; `--screen`, and optionally `x=`/`y=` and other
+fields), `rm` removes a widget and is refused while code still references its
+alias unless `--force` (references come from `main.src` in the `.rev` folder;
+without it a warning says they were not checked).
+
+**Database write commands** use the database schema editor's own pure logic
+(model, validation, save plan): table and field names (max 8 ASCII characters,
+iRite identifiers, no reserved words, no duplicates), v308 designer limits (128
+tables, 100 fields per table, up to 2000000 records, string sizes 1..255, fixed
+sizes per type) and the default size when a type changes. `<type>` is the
+Revolution name (case-insensitive: `Long Integer`, `Variable Length String`, ...)
+or the numeric code 1..8 (1 Byte, 2 Short Integer, 3 Long Integer, 4 Single
+Precision Real, 5 Double Precision Real, 6 Fixed Length String, 7 Variable
+Length String, 8 DateTime). Tables and fields are matched by name
+(case-insensitive); positions are 1-based. Fields of an unknown type code stay
+read-only (`set-field` is refused), exactly as in the editor. A table needs at
+least one field, so `add-table` takes `--field Name:type[:size]` (repeatable;
+`--records` defaults to 1). Only `DB.SCHEMA`/`DB.ALIAS` lines and `ConfigHash` change.
+`main.iri` is never written: `warnings` say its database types and
+`<Table>_<Field>` constants change (the new text is in `iriHint`) and that renamed,
+deleted or reordered fields can break code and DB access routines; regenerate
+it with `regen-iri` or from the extension.
+
+**`regen-iri <file.rev>`** regenerates `<rev basename>.iri` (`main.iri`) with the
+same generator as **iRite: Regenerate main.iri from .rev**. It is a dry-run by
+default and reports `changes` as `unchanged`, `create` (missing target) or
+`replace`, with `added`/`removed` line counts and a sample of the changed lines
+(`addedLines`, `removedLines`). `--write` keeps the extension's rules: the previous
+file is copied first to `main.iri.bak` (a timestamped name when it exists, never
+overwritten), a failed backup leaves the target untouched, identical content
+writes nothing and a missing target is created without a backup. The `.rev` is
+never written. `fileHash` and `--expect-hash` refer to the bytes of the `.iri`
+target (SHA-256 hex; `fileHash` is `null` when it does not exist, which a
+`--expect-hash` refuses with exit 4). Result:
+`{ ok, command, file, dryRun, fileHash, newHash?, backup?, changes, warnings }`.
+Not verified against Revolution v310.
+
+**`diagnose <project-dir|file.rev|main.src>`** is read-only and prints the rules
+that populate the Problems view, with the extension's default settings, as JSON
+`{ ok, command, project, rev, diagnostics: [{ source, severity, file, line?,
+message, code? }], counts: { total, bySource, bySeverity } }`. `source` is
+`irite-sfc` (Petri FSM checks), `irite-db-access` (missing or pending per-table
+routines; severity `warning`) or `widgets` (`overlap` and `out-of-bounds`, as in
+`widgets`; `line` is the `WDGT` line of the `.rev`). The project is the
+`main.src` of the folder (or next to the `.rev`) and the `.rev` is the `main.rev`
+beside it; without `main.src` only widget diagnostics are produced. It exits 0
+even when it reports diagnostics, 1 when nothing is readable, 2 on usage errors.
+
+Safety rules of every write command:
+
+-   **Dry-run by default**: without `--write` nothing is touched; the JSON
+    shows the planned `changes`. `--dry-run` is accepted explicitly.
+-   `--write` applies: the file is backed up first (`main.rev.bak`, a
+    timestamped name when it exists; never overwritten), replaced atomically
+    (temp file and rename), `ConfigHash` is recomputed, and the result is read
+    back and validated. BOM, CRLF, `WDGT` line order and every untouched byte
+    are kept. If the backup fails, the file is not touched.
+-   `--expect-hash <sha256>` refuses a stale file: the SHA-256 (hex) of the raw
+    bytes must match. Every result carries `fileHash` (the hash before the
+    change) so an agent can do dry-run, review, then `--write --expect-hash
+    <fileHash>`. After a write, `newHash` is the hash of the new file.
+-   `main.iri` is never written by these commands; the constant lines that
+    change are listed in `warnings` (and `iriHint`). Revolution and 1280
+    acceptance of an edited `.rev` stays unverified.
+
+JSON on stdout: `{ "ok", "command", "file", "dryRun", "fileHash", "newHash"?,
+"backup"?, "changes": [{ "op": "set|add|rm" (widgets) or "addTable|rmTable|addField|setField|rmField|moveField" (db), ... }], "warnings": [] }`;
+errors are `{ "ok": false, "command", "file", "fileHash"?, "error", ... }`
+(a refused `widget rm` also lists `references`).
+
+| Exit | Meaning |
+| ---- | ------- |
+| 0 | OK (a dry-run that plans a change is also 0) |
+| 1 | the file cannot be read |
+| 2 | usage error (unknown command or option, missing or malformed argument) |
+| 3 | validation error or refusal (unknown field or id, out of range, bad alias, referenced widget without `--force`); nothing written |
+| 4 | stale file (`--expect-hash` mismatch, or the file changed while planning); nothing written |
+| 5 | I/O failure while backing up, writing or reading back (the message names the backup) |
 
 ### Database schema editor (opt-in)
 

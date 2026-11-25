@@ -11,6 +11,7 @@ import { renderEditorHtml } from "../editor/editorHtml";
 import {
 	addWidget,
 	changedIds,
+	aliasEntries,
 	deleteWidget,
 	editLabel,
 	effectiveGeometry,
@@ -110,11 +111,6 @@ function listImages(dir: string): string[] {
 	} catch {
 		return [];
 	}
-}
-
-/** The widget list as `main.iri` sees it: widgets that have an alias there. */
-function aliasEntries(rev: RevModel, state: EditState): Array<{ id: number; alias: string }> {
-	return effectiveWidgets(rev, state).flatMap((w) => (w.alias ? [{ id: w.id, alias: w.alias }] : []));
 }
 
 function writeAtomic(target: string, bytes: Buffer): void {
