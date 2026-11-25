@@ -1,7 +1,7 @@
 ChangeLog
 =========
 
-#### Unreleased
+#### 2.14.0
 - `rev-cli regen-iri <file.rev>` regenerates `main.iri` with the extension's generator and backup-then-replace plan: dry-run by default (reports `unchanged`, `create` or `replace` with a line diff summary), `--write` backs up and replaces, `--expect-hash` guards the `.iri` bytes (exit 4 when stale). The `.rev` is never written. Not verified against Revolution v310.
 - `rev-cli diagnose <project-dir|file.rev|main.src>` prints, as read-only JSON, the diagnostics the Problems view shows: SFC (`irite-sfc`), DB access (`irite-db-access`) and widget overlaps and out-of-bounds. Exit 0 even when it reports problems. Internal: the DB access diagnostic list moved to a pure `tableDiagnostics` shared with the extension (no behavior change).
 - `rev-cli db add-table | rm-table | add-field | set-field | rm-field | move-field` edit the `.rev` database schema from the command line with the database schema editor's own validation (names, reserved words, v308 limits, sizes, default size on type change) and save plan. Same safety rules as the widget commands (dry-run by default, `--write`, `--expect-hash`, backup, atomic replace, `ConfigHash` recomputed, readback) and exit codes. Types by Revolution name or code 1..8; unknown type codes stay read-only. `add-table` needs `--field Name:type[:size]` because a table must have at least one field. `main.iri` is never written; `warnings` say its database types and column-index constants change and that renamed, deleted or reordered fields can break code. Unverified in Revolution and on a 1280.
