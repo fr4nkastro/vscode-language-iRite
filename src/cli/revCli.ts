@@ -18,11 +18,17 @@ import type { ScreenView } from "../preview/screenModel";
 import { findOverlaps, isBackdrop, outOfBounds, widgetBox } from "../preview/widgetBox";
 import { parseRev } from "../rev";
 import { widgetTypeDef } from "../rev/widgetCatalog";
+import { runWidgetCommand } from "./widgetCommands";
+import type { WriteFs } from "./writeCore";
 
 export interface CliIo {
 	readText(p: string): string | undefined;
 	readBinary(p: string): Buffer | undefined;
 	exists(p: string): boolean;
+	/** Needed only by write commands with `--write`. */
+	writeFs?: WriteFs;
+	/** Clock for backup names and temp files (defaults to `new Date()`). */
+	now?: () => Date;
 }
 
 export interface CliResult {
@@ -37,9 +43,17 @@ export const USAGE = `Usage: rev-cli <command> <file.rev> [options]
   screens <rev>                                       List screens (number, names, widget count) as JSON
   widgets <rev> [--screen n] [--panel 7|12]           Widgets in paint order, named props, boxes, overlaps, as JSON
   render  <rev> --screen n [--panel 7|12] [--out f] [--firmware-images dir]   Render a screen as SVG
+  widget set <rev> <id> <field>=<value>...            Change widget fields (catalog names, editable ones only)
+  widget add <rev> <type> --screen n [field=value...] Add a widget (lowest free id, catalog defaults, default alias)
+  widget rm  <rev> <id> [--force]                     Remove a widget (refused when code still references it)
+Write commands are DRY-RUN by default and print JSON { ok, command, file, dryRun, fileHash, newHash?, backup?,
+changes, warnings }. Options: --write applies (backup first, atomic replace, ConfigHash recomputed, readback
+validated); --dry-run (default); --expect-hash <sha256 hex of the file> refuses a stale file. main.iri is never
+written; the constant lines that change are listed in "warnings". Errors are JSON { ok:false, error, ... }.
+Exit codes: 0 ok, 1 file not readable, 2 usage, 3 validation/refused, 4 stale file, 5 write/backup/readback failure.
 Each widget lists "props": its named properties from the widget catalog (type name in "typeName").
 An explicit --firmware-images directory must contain a usable image cache.
-Read-only: the .rev is never modified.
+screens, widgets and render are read-only: they never modify the .rev.
 `;
 
 const MAX_IMAGE_BYTES = 2_000_000;
@@ -128,6 +142,9 @@ function summarize(s: ScreenView, panel: PanelId) {
 export function runCli(argv: string[], io: CliIo): CliResult {
 	if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
 		return { code: argv.length === 0 ? 2 : 0, stdout: argv.length === 0 ? "" : USAGE, stderr: argv.length === 0 ? USAGE : "" };
+	}
+	if (argv[0] === "widget") {
+		return runWidgetCommand(argv, io);
 	}
 	const args = parseArgs(argv);
 	if (typeof args === "string") {

@@ -201,12 +201,16 @@ Right-click a `.rev` and choose **iRite: Edit Screens** (or "Open With..." >
 
 #### Headless CLI (for agents and scripts)
 
-`dist/rev-cli.js` (bundled with the extension, no dependencies, read-only):
+`dist/rev-cli.js` (bundled with the extension, no dependencies). The read
+commands never modify the file; the `widget` commands write only with `--write`:
 
 ```
 node rev-cli.js screens <file.rev>
 node rev-cli.js widgets <file.rev> [--screen n] [--panel 7|12]
 node rev-cli.js render  <file.rev> --screen n [--panel 7|12] [--out screen.svg] [--firmware-images <dir>]
+node rev-cli.js widget set <file.rev> <id> <field>=<value>... [--write] [--expect-hash <sha256>]
+node rev-cli.js widget add <file.rev> <type> --screen n [field=value...] [--write] [--expect-hash <sha256>]
+node rev-cli.js widget rm  <file.rev> <id> [--force] [--write] [--expect-hash <sha256>]
 ```
 
 `screens` and `widgets` print JSON (type name, named properties `props`, boxes,
@@ -222,6 +226,46 @@ Rendered built-ins use absolute `file:` URIs, not copies;
 viewers may restrict local file access and the SVG is not portable without the
 cache. Generated project documentation uses the selected cache's 7-inch variant
 in the same way; regenerate it after importing.
+
+**Widget write commands** use the screen editor's own rules (widget catalog
+fields, ranges and enums, id and alias rules, `<=` 255 characters per line):
+`set` changes editable fields by catalog name (as listed in `props` of
+`widgets`), `add` takes the lowest free id (1..999), the catalog defaults and
+the default alias (`lbl7`; `--screen`, and optionally `x=`/`y=` and other
+fields), `rm` removes a widget and is refused while code still references its
+alias unless `--force` (references come from `main.src` in the `.rev` folder;
+without it a warning says they were not checked).
+
+Safety rules of every write command:
+
+-   **Dry-run by default**: without `--write` nothing is touched; the JSON
+    shows the planned `changes`. `--dry-run` is accepted explicitly.
+-   `--write` applies: the file is backed up first (`main.rev.bak`, a
+    timestamped name when it exists; never overwritten), replaced atomically
+    (temp file and rename), `ConfigHash` is recomputed, and the result is read
+    back and validated. BOM, CRLF, `WDGT` line order and every untouched byte
+    are kept. If the backup fails, the file is not touched.
+-   `--expect-hash <sha256>` refuses a stale file: the SHA-256 (hex) of the raw
+    bytes must match. Every result carries `fileHash` (the hash before the
+    change) so an agent can do dry-run, review, then `--write --expect-hash
+    <fileHash>`. After a write, `newHash` is the hash of the new file.
+-   `main.iri` is never written by these commands; the constant lines that
+    change are listed in `warnings` (and `iriHint`). Revolution and 1280
+    acceptance of an edited `.rev` stays unverified.
+
+JSON on stdout: `{ "ok", "command", "file", "dryRun", "fileHash", "newHash"?,
+"backup"?, "changes": [{ "op": "set|add|rm", "id", ... }], "warnings": [] }`;
+errors are `{ "ok": false, "command", "file", "fileHash"?, "error", ... }`
+(a refused `widget rm` also lists `references`).
+
+| Exit | Meaning |
+| ---- | ------- |
+| 0 | OK (a dry-run that plans a change is also 0) |
+| 1 | the file cannot be read |
+| 2 | usage error (unknown command or option, missing or malformed argument) |
+| 3 | validation error or refusal (unknown field or id, out of range, bad alias, referenced widget without `--force`); nothing written |
+| 4 | stale file (`--expect-hash` mismatch, or the file changed while planning); nothing written |
+| 5 | I/O failure while backing up, writing or reading back (the message names the backup) |
 
 ### Database schema editor (opt-in)
 

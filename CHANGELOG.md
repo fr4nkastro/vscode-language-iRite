@@ -1,6 +1,9 @@
 ChangeLog
 =========
 
+#### Unreleased
+- `rev-cli` gets its first write commands, `widget set`, `widget add` and `widget rm`, built on the screen editor's validation and save plan. They are **dry-run by default**; `--write` backs up the file first, replaces it atomically, recomputes `ConfigHash` and validates the readback, and `--expect-hash <sha256>` refuses a stale file. `widget rm` refuses a widget still referenced in code unless `--force`. `main.iri` is never written (the constant lines that change are reported in `warnings`). Results are JSON with `fileHash`, `changes`, `warnings`; exit codes 0 ok, 1 unreadable, 2 usage, 3 refused, 4 stale, 5 I/O. Edited files remain unverified in Revolution and on a 1280.
+
 #### 2.13.0
 - New **iRite: Regenerate main.iri from .rev** (explorer menu on `.rev`, and a button after saving in the screen and database schema editors) regenerates `main.iri` the way Revolution does, byte-identical on the DOLE sample, keeping a backup of the previous file (never overwritten); an identical file is left untouched. Not verified against Revolution v310.
 - Fix (#19): label and monospace label widgets now preview their **justification** (Left / Right / Center) and **border** (Fixed single draws a 1 px frame, None draws none) in the preview, the screen editor and `rev-cli render`; label text is always vertically centered. Border color (black) and placement inside the box are unconfirmed on a 1280.
