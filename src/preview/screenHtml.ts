@@ -6,6 +6,10 @@ import type { PanelId } from "./panels";
 import type { ScreenView, ScreensView, WidgetView } from "./screenModel";
 import { PREVIEW_STATE_SOURCE, previewState } from "./previewState";
 import { entryLabel, buildWidgetRows, screenTitle } from "./widgetList";
+import { LABEL_BORDER_COLOR, labelAlign, labelHasBorder } from "./labelLayout";
+import type { LabelAlign } from "./labelLayout";
+
+const JUSTIFY: Record<LabelAlign, string> = { left: "flex-start", right: "flex-end", center: "center" };
 
 /** Usable area of the authored 7" panel in pixels (800x480 minus the 92 px header; see `panels.ts`). */
 export const CANVAS_WIDTH = panelGeometry("7").canvasWidth;
@@ -74,11 +78,16 @@ export function renderWidget(w: WidgetView, opts: RenderOptions): string {
 		}
 		case "label":
 		case "monolabel":
-		case "numeric":
+		case "numeric": {
 			cls += w.typeName === "monolabel" ? " label mono" : " label";
-			extra = `font-size:${px(w.fontSize, 12)}px;color:${color(w.color, "Black")};`;
-			inner = escapeHtml(w.text ?? (w.typeName === "numeric" ? "123.4" : ""));
+			const align = labelAlign(w);
+			extra =
+				`font-size:${px(w.fontSize, 12)}px;color:${color(w.color, "Black")};` +
+				`align-items:center;justify-content:${JUSTIFY[align]};text-align:${align};` +
+				(labelHasBorder(w) ? `border:1px solid ${LABEL_BORDER_COLOR};` : "");
+			inner = `<span>${escapeHtml(w.text ?? (w.typeName === "numeric" ? "123.4" : ""))}</span>`;
 			break;
+		}
 		case "bitmap":
 			cls += " bitmap";
 			inner = "&#9660;";
@@ -140,7 +149,8 @@ export function renderWidget(w: WidgetView, opts: RenderOptions): string {
 /** Visual rules of the widget boxes, shared by the preview and the editor so both paint identically. */
 export const WIDGET_STYLE = `
 .w{position:absolute;box-sizing:border-box;overflow:hidden;cursor:pointer;}
-.label{white-space:nowrap;text-overflow:ellipsis;}
+.label{display:flex;white-space:nowrap;}
+.label>span{overflow:hidden;text-overflow:ellipsis;}
 .mono{font-family:monospace;}
 .line{min-height:1px;}
 .bitmap{border:1px solid #666;background:#f4f4f4;color:#666;display:flex;align-items:center;justify-content:center;}
