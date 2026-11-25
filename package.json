@@ -2,7 +2,7 @@
 	"name": "irite",
 	"displayName": "iRite - Rice Lake Weighing Systems",
 	"description": "iRite support for Visual Studio Code",
-	"version": "2.12.1",
+	"version": "2.13.0",
 	"publisher": "RLWS",
 	"galleryBanner": {
 		"color": "#4682B4",
@@ -243,7 +243,12 @@
 				"irite.dbAccess.severity": {
 					"type": "string",
 					"default": "Warning",
-					"enum": ["Error", "Warning", "Information", "Hint"],
+					"enum": [
+						"Error",
+						"Warning",
+						"Information",
+						"Hint"
+					],
 					"description": "Severity of the missing/pending DB access routines diagnostic."
 				},
 				"irite.dbAccess.routinePrefix": {
@@ -253,7 +258,9 @@
 				},
 				"irite.dbAccess.exclusions": {
 					"type": "array",
-					"items": { "type": "string" },
+					"items": {
+						"type": "string"
+					},
 					"default": [],
 					"markdownDescription": "Tables or groups the standard does not apply to. `Settings` excludes a whole table; `Settings:search` one group; `*:setters` a group of every table. Groups: `crud`, `record`, `getters`, `setters`, `search`. Case-insensitive."
 				},
