@@ -15,8 +15,33 @@ Code. It supports:
 Installation
 ============
 
-Click on the Extension tab, and type in iRite. Click install and allow
-VScode to restart. You now have syntax highlighting and snippets.
+This is the IPESAH fork of the Rice Lake extension. It is not on the
+Visual Studio Marketplace; install it from the `.vsix` file attached to
+each GitHub release. It requires VS Code 1.85 or later.
+
+1.  Download `irite-<version>.vsix` from the
+    [latest release](https://github.com/fr4nkastro/vscode-language-iRite/releases/latest).
+2.  Install it, either way:
+    -   In VS Code, open the Extensions view (`Ctrl+Shift+X`), click
+        the `...` menu at the top, choose **Install from VSIX...** and
+        pick the downloaded file.
+    -   From a terminal: `code --install-extension irite-<version>.vsix`
+3.  Reload the window (**Developer: Reload Window**) if VS Code asks.
+4.  Turn off automatic updates for this extension: right-click
+    **iRite** in the Extensions view and clear **Auto Update**.
+
+The fork keeps the extension id `RLWS.irite`, so it replaces the Rice
+Lake extension from the Marketplace. With Auto Update on, VS Code could
+replace the fork with a newer Rice Lake version.
+
+To update, install the newer `.vsix` the same way. To go back to the
+Rice Lake version, uninstall the extension and install **iRite** from
+the Marketplace.
+
+Firmware images of the 1280 are not included in the package; import
+them from your own firmware copy (see *Built-in firmware images*).
+Building and deploying (F7/F8) still needs Revolution and the iRite
+compiler, as described below.
 
 Compilation and Deployment
 --------------------------
