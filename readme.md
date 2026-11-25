@@ -199,6 +199,52 @@ Right-click a `.rev` and choose **iRite: Edit Screens** (or "Open With..." >
     have. Restore with: copy the `.bak` over the `.rev`.
 -   A save is refused when the file changed on disk since it was opened.
 
+### Copilot Chat tools (agent mode)
+
+The extension registers **Language Model tools** so GitHub Copilot Chat (agent
+mode) and other in-IDE agents can inspect and edit an iRite project without leaving VS Code.
+**Requires VS Code 1.95 or later** (older builds cannot install this version).
+
+To use them: open Copilot Chat, switch to **Agent** mode, open the tools picker
+(the wrench icon) and make sure the **iRite** tools are enabled. You can also
+force one with a `#` reference in the prompt, for example
+`#iriteScreens list the screens` or `#iriteDiagnose what is wrong in this project?`.
+
+Read tools (they never modify anything):
+
+| Tool | Reference | Returns |
+| ---- | --------- | ------- |
+| `irite_screens` | `#iriteScreens` | screens of the `.rev` (number, names, widget count) |
+| `irite_widgets` | `#iriteWidgets` | widgets of one screen (optional `screen`, `panel` 7 or 12) with properties, boxes and overlaps; defaults to the lowest screen and long lists are truncated with a note |
+| `irite_diagnose` | `#iriteDiagnose` | the `rev-cli diagnose` JSON plus the entries that the iRite collections (`irite-sfc`, `irite-db-access`) currently show in the Problems panel |
+| `irite_dbSchema` | `#iriteDbSchema` | database tables and fields (Revolution type names and codes) stored in the `.rev` |
+
+Every tool takes an optional `rev` (a `.rev` file or the project folder). Without
+it the tool uses the workspace's `main.rev` next to `main.src`, and asks for `rev`
+when there is none or more than one. Only paths **inside the open workspace
+folders** are accepted; anything else (including `..` and other drives) is refused.
+The results are the same JSON as the headless CLI below. The `irite-sfc` live
+entries exist only while the SFC diagram is open.
+
+**Write tools** (preview by default):
+
+- Widgets: `#iriteWidgetSet`, `#iriteWidgetAdd`, `#iriteWidgetRm`.
+- Database: `#iriteDbAddTable`, `#iriteDbRmTable`, `#iriteDbAddField`,
+  `#iriteDbSetField`, `#iriteDbRmField`, `#iriteDbMoveField`.
+- Generated aliases and types: `#iriteRegenIri`. No other tool regenerates the `.iri`.
+
+For example, ask `#iriteWidgetSet preview moving widget 12 to x=40 without writing`.
+To apply, ask explicitly. In a trusted workspace, VS Code then shows an iRite
+confirmation with the target, proposed changes and warnings. Approve **Apply**
+only if they match your request. This confirmation is required even if Copilot
+allows the tool call automatically. Changes to the target or an input on disk
+invalidate the plan; run the tool again to preview it. A dirty target text
+document in VS Code must be saved or closed first. The tools reuse the CLI's
+backup, atomic replacement and readback behavior, and return a JSON result,
+including the backup path when one is created.
+
+Not yet verified in a live Copilot Chat session, Revolution, or on a 1280.
+
 #### Headless CLI (for agents and scripts)
 
 `dist/rev-cli.js` (bundled with the extension, no dependencies). The read

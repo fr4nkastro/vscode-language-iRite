@@ -15,6 +15,7 @@ vi.mock('vscode', () => ({
  RelativePattern: class {}, ViewColumn: {Beside: 2},
 }));
 vi.mock('../../src/commands/engine', () => ({checkRevolutionInstalled() {}, registerEngineCommands() {}}));
+vi.mock('../../src/commands/lmTools', () => ({registerLmTools() {}}));
 vi.mock('../../src/commands/previewScreens', () => ({registerPreviewCommands() {}}));
 vi.mock('../../src/commands/screenEditor', () => ({registerScreenEditor() {}}));
 vi.mock('../../src/commands/sfc', () => ({registerSfcCommands() {}}));

@@ -1,6 +1,11 @@
 ChangeLog
 =========
 
+#### Unreleased
+- **Minimum VS Code is now 1.95** (`engines.vscode` and `@types/vscode` raised from 1.85); older builds will not install this version.
+- New Language Model tools for Copilot Chat agent mode and other in-IDE agents (read side): `irite_screens`, `irite_widgets`, `irite_diagnose` and `irite_dbSchema`, referenced with `#iriteScreens`, `#iriteWidgets`, `#iriteDiagnose`, `#iriteDbSchema`. They reuse the headless CLI core, accept only paths inside the open workspace folders, and `irite_diagnose` also returns the live entries of the `irite-sfc` and `irite-db-access` Problems collections. Not verified in a live Copilot Chat session.
+- Copilot Chat write tools cover widget edits, database schema edits, and explicit `.iri` regeneration. They preview by default and require a separate native VS Code confirmation for each apply, even with Copilot auto-approval. They refuse stale inputs and use the headless CLI's backup, atomic write, and readback checks.
+
 #### 2.14.0
 - `rev-cli regen-iri <file.rev>` regenerates `main.iri` with the extension's generator and backup-then-replace plan: dry-run by default (reports `unchanged`, `create` or `replace` with a line diff summary), `--write` backs up and replaces, `--expect-hash` guards the `.iri` bytes (exit 4 when stale). The `.rev` is never written. Not verified against Revolution v310.
 - `rev-cli diagnose <project-dir|file.rev|main.src>` prints, as read-only JSON, the diagnostics the Problems view shows: SFC (`irite-sfc`), DB access (`irite-db-access`) and widget overlaps and out-of-bounds. Exit 0 even when it reports problems. Internal: the DB access diagnostic list moved to a pure `tableDiagnostics` shared with the extension (no behavior change).

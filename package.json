@@ -9,7 +9,7 @@
 		"theme": "dark"
 	},
 	"engines": {
-		"vscode": "^1.85.0"
+		"vscode": "^1.95.0"
 	},
 	"categories": [
 		"Programming Languages",
@@ -302,7 +302,595 @@
 					"description": "Initial SFC step. Empty = a step named Standby/Idle/Init, else the first one."
 				}
 			}
-		}
+		},
+		"languageModelTools": [
+			{
+				"name": "irite_screens",
+				"displayName": "iRite Screens",
+				"toolReferenceName": "iriteScreens",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(device-desktop)",
+				"userDescription": "List the screens of the iRite project .rev (screen numbers, names, widget counts).",
+				"modelDescription": "Returns, as JSON, the screens of a Rice Lake iRite (1280) project's .rev file: for each screen its number, names found in code and widget count, plus the indicator model. Read-only. Use it first to learn which screens exist before calling irite_widgets. Input: optional rev (path of a .rev or project folder inside the workspace).",
+				"tags": [
+					"irite",
+					"rev",
+					"screens"
+				],
+				"inputSchema": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"rev": {
+							"type": "string",
+							"description": "Path of the .rev file or of the iRite project folder (the one with main.rev / main.src), absolute or relative to the first workspace folder. Must be inside an open workspace folder. Optional: when omitted the project of the workspace is used; if there are several, pass it."
+						}
+					}
+				}
+			},
+			{
+				"name": "irite_widgets",
+				"displayName": "iRite Widgets",
+				"toolReferenceName": "iriteWidgets",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(layout)",
+				"userDescription": "List the widgets of one iRite screen with their properties and boxes.",
+				"modelDescription": "Returns, as JSON, the widgets of one screen of an iRite .rev in paint order: id, type, alias, caption, named catalog properties (props), authored 7-inch box, scaled panel box, backdrop and out-of-bounds flags, and the overlaps between widgets. Read-only. Use it to inspect a screen layout before suggesting changes. Input: optional rev, optional screen number (defaults to the lowest screen; large screens are truncated with a note) and optional panel 7 or 12.",
+				"tags": [
+					"irite",
+					"rev",
+					"screens",
+					"widgets"
+				],
+				"inputSchema": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"rev": {
+							"type": "string",
+							"description": "Path of the .rev file or of the iRite project folder (the one with main.rev / main.src), absolute or relative to the first workspace folder. Must be inside an open workspace folder. Optional: when omitted the project of the workspace is used; if there are several, pass it."
+						},
+						"screen": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 999999,
+							"description": "Screen number to list. Optional: defaults to the lowest screen number (use irite_screens to list them)."
+						},
+						"panel": {
+							"type": "string",
+							"enum": [
+								"7",
+								"12"
+							],
+							"description": "Panel for the scaled boxes: \"7\" (800x480, default) or \"12\" (1280x800)."
+						}
+					}
+				}
+			},
+			{
+				"name": "irite_diagnose",
+				"displayName": "iRite Diagnose",
+				"toolReferenceName": "iriteDiagnose",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(warning)",
+				"userDescription": "Report iRite problems: SFC, DB access routines and widget overlaps, including what the Problems panel shows.",
+				"modelDescription": "Returns, as JSON, the iRite project diagnostics: SFC/Petri state machine problems (irite-sfc), missing DB access routines (irite-db-access) and widget overlaps or out-of-bounds widgets, with file, line and message, plus a 'live' section with the entries currently in the VS Code Problems panel from the iRite collections (irite-sfc entries exist only while the SFC diagram is open). Read-only. Use it to see what the user sees and to find what to fix. Input: optional rev (a .rev, main.src or project folder inside the workspace).",
+				"tags": [
+					"irite",
+					"diagnostics",
+					"problems"
+				],
+				"inputSchema": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"rev": {
+							"type": "string",
+							"description": "Path of the .rev file or of the iRite project folder (the one with main.rev / main.src), absolute or relative to the first workspace folder. Must be inside an open workspace folder. Optional: when omitted the project of the workspace is used; if there are several, pass it."
+						}
+					}
+				}
+			},
+			{
+				"name": "irite_dbSchema",
+				"displayName": "iRite Database Schema",
+				"toolReferenceName": "iriteDbSchema",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(database)",
+				"userDescription": "List the database tables and fields stored in the iRite project .rev.",
+				"modelDescription": "Returns, as JSON, the database tables defined in an iRite .rev (DB.SCHEMA / DB.ALIAS): table index, name, max records and each field with name, Revolution type name, numeric type code and size. Read-only. Use it before suggesting database or dbaccess changes. Input: optional rev (path of a .rev or project folder inside the workspace).",
+				"tags": [
+					"irite",
+					"rev",
+					"database"
+				],
+				"inputSchema": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"rev": {
+							"type": "string",
+							"description": "Path of the .rev file or of the iRite project folder (the one with main.rev / main.src), absolute or relative to the first workspace folder. Must be inside an open workspace folder. Optional: when omitted the project of the workspace is used; if there are several, pass it."
+						}
+					}
+				}
+			},
+			{
+				"name": "irite_widgetSet",
+				"displayName": "iRite: Set Widget Properties",
+				"toolReferenceName": "iriteWidgetSet",
+				"canBeReferencedInPrompt": true,
+				"userDescription": "Change properties on an existing .rev widget by numeric ID.",
+				"modelDescription": "Change properties on an existing .rev widget by numeric ID. Preview by default. Set apply=true only when the user asks to apply the change; VS Code then asks for per-call confirmation.",
+				"tags": [
+					"irite"
+				],
+				"inputSchema": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"rev": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Path to a .rev or iRite project folder inside the workspace; omit for a single project."
+						},
+						"apply": {
+							"type": "boolean",
+							"description": "Default false: preview only. True requests a native VS Code confirmation and then applies only if approved."
+						},
+						"id": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 999999,
+							"description": "Numeric widget ID; list widgets first if unknown."
+						},
+						"fields": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 128,
+							"items": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 512
+							},
+							"description": "Widget property assignments as individual key=value strings."
+						}
+					},
+					"required": [
+						"id",
+						"fields"
+					]
+				}
+			},
+			{
+				"name": "irite_widgetAdd",
+				"displayName": "iRite: Add Widget",
+				"toolReferenceName": "iriteWidgetAdd",
+				"canBeReferencedInPrompt": true,
+				"userDescription": "Add a widget of a Revolution type to an iRite screen.",
+				"modelDescription": "Add a widget of a Revolution type to an iRite screen. Preview by default. Set apply=true only when the user asks to apply the change; VS Code then asks for per-call confirmation.",
+				"tags": [
+					"irite"
+				],
+				"inputSchema": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"rev": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Path to a .rev or iRite project folder inside the workspace; omit for a single project."
+						},
+						"apply": {
+							"type": "boolean",
+							"description": "Default false: preview only. True requests a native VS Code confirmation and then applies only if approved."
+						},
+						"type": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 999999,
+							"description": "Revolution widget type code 1–11."
+						},
+						"screen": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 999999,
+							"description": "Target screen number."
+						},
+						"fields": {
+							"type": "array",
+							"minItems": 0,
+							"maxItems": 128,
+							"items": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 512
+							},
+							"description": "Widget property assignments as individual key=value strings."
+						}
+					},
+					"required": [
+						"type",
+						"screen"
+					]
+				}
+			},
+			{
+				"name": "irite_widgetRm",
+				"displayName": "iRite: Remove Widget",
+				"toolReferenceName": "iriteWidgetRm",
+				"canBeReferencedInPrompt": true,
+				"userDescription": "Remove a .rev widget by numeric ID. References cause refusal unless force is requested.",
+				"modelDescription": "Remove a .rev widget by numeric ID. References cause refusal unless force is requested. Preview by default. Set apply=true only when the user asks to apply the change; VS Code then asks for per-call confirmation.",
+				"tags": [
+					"irite"
+				],
+				"inputSchema": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"rev": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Path to a .rev or iRite project folder inside the workspace; omit for a single project."
+						},
+						"apply": {
+							"type": "boolean",
+							"description": "Default false: preview only. True requests a native VS Code confirmation and then applies only if approved."
+						},
+						"id": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 999999,
+							"description": "Numeric widget ID; list widgets first if unknown."
+						},
+						"force": {
+							"type": "boolean",
+							"description": "Only set true when the user explicitly asks to remove a referenced widget."
+						}
+					},
+					"required": [
+						"id"
+					]
+				}
+			},
+			{
+				"name": "irite_dbAddTable",
+				"displayName": "iRite: Add Database Table",
+				"toolReferenceName": "iriteDbAddTable",
+				"canBeReferencedInPrompt": true,
+				"userDescription": "Add a .rev database table with at least one field; use the database schema tool for context.",
+				"modelDescription": "Add a .rev database table with at least one field; use the database schema tool for context. Preview by default. Set apply=true only when the user asks to apply the change; VS Code then asks for per-call confirmation.",
+				"tags": [
+					"irite"
+				],
+				"inputSchema": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"rev": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Path to a .rev or iRite project folder inside the workspace; omit for a single project."
+						},
+						"apply": {
+							"type": "boolean",
+							"description": "Default false: preview only. True requests a native VS Code confirmation and then applies only if approved."
+						},
+						"table": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Existing table alias, or the alias to create for Add Table."
+						},
+						"records": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 999999,
+							"description": "Maximum record count."
+						},
+						"fields": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 128,
+							"items": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 512
+							},
+							"description": "Column declarations in Name:type[:size] format."
+						}
+					},
+					"required": [
+						"table",
+						"fields"
+					]
+				}
+			},
+			{
+				"name": "irite_dbRmTable",
+				"displayName": "iRite: Remove Database Table",
+				"toolReferenceName": "iriteDbRmTable",
+				"canBeReferencedInPrompt": true,
+				"userDescription": "Remove an entire table from the .rev database schema, including all its fields.",
+				"modelDescription": "Remove an entire table from the .rev database schema, including all its fields. Preview by default. Set apply=true only when the user asks to apply the change; VS Code then asks for per-call confirmation.",
+				"tags": [
+					"irite"
+				],
+				"inputSchema": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"rev": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Path to a .rev or iRite project folder inside the workspace; omit for a single project."
+						},
+						"apply": {
+							"type": "boolean",
+							"description": "Default false: preview only. True requests a native VS Code confirmation and then applies only if approved."
+						},
+						"table": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Existing table alias, or the alias to create for Add Table."
+						}
+					},
+					"required": [
+						"table"
+					]
+				}
+			},
+			{
+				"name": "irite_dbAddField",
+				"displayName": "iRite: Add Database Field",
+				"toolReferenceName": "iriteDbAddField",
+				"canBeReferencedInPrompt": true,
+				"userDescription": "Add a field to an existing .rev database table.",
+				"modelDescription": "Add a field to an existing .rev database table. Preview by default. Set apply=true only when the user asks to apply the change; VS Code then asks for per-call confirmation.",
+				"tags": [
+					"irite"
+				],
+				"inputSchema": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"rev": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Path to a .rev or iRite project folder inside the workspace; omit for a single project."
+						},
+						"apply": {
+							"type": "boolean",
+							"description": "Default false: preview only. True requests a native VS Code confirmation and then applies only if approved."
+						},
+						"table": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Existing table alias, or the alias to create for Add Table."
+						},
+						"field": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Column name (case-insensitive for an existing field)."
+						},
+						"type": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Revolution field type name or type code 1–8 as a string."
+						},
+						"size": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 999999,
+							"description": "Size for a string field, when applicable."
+						},
+						"at": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 999999,
+							"description": "Optional 1-based insertion position."
+						}
+					},
+					"required": [
+						"table",
+						"field",
+						"type"
+					]
+				}
+			},
+			{
+				"name": "irite_dbSetField",
+				"displayName": "iRite: Set Database Field",
+				"toolReferenceName": "iriteDbSetField",
+				"canBeReferencedInPrompt": true,
+				"userDescription": "Change the name, type or string size of an existing database field.",
+				"modelDescription": "Change the name, type or string size of an existing database field. Preview by default. Set apply=true only when the user asks to apply the change; VS Code then asks for per-call confirmation.",
+				"tags": [
+					"irite"
+				],
+				"inputSchema": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"rev": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Path to a .rev or iRite project folder inside the workspace; omit for a single project."
+						},
+						"apply": {
+							"type": "boolean",
+							"description": "Default false: preview only. True requests a native VS Code confirmation and then applies only if approved."
+						},
+						"table": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Existing table alias, or the alias to create for Add Table."
+						},
+						"field": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Column name (case-insensitive for an existing field)."
+						},
+						"name": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "New column name."
+						},
+						"type": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Revolution field type name or type code 1–8 as a string."
+						},
+						"size": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 999999,
+							"description": "Size for a string field, when applicable."
+						}
+					},
+					"required": [
+						"table",
+						"field"
+					]
+				}
+			},
+			{
+				"name": "irite_dbRmField",
+				"displayName": "iRite: Remove Database Field",
+				"toolReferenceName": "iriteDbRmField",
+				"canBeReferencedInPrompt": true,
+				"userDescription": "Remove a column from a table in the .rev database schema.",
+				"modelDescription": "Remove a column from a table in the .rev database schema. Preview by default. Set apply=true only when the user asks to apply the change; VS Code then asks for per-call confirmation.",
+				"tags": [
+					"irite"
+				],
+				"inputSchema": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"rev": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Path to a .rev or iRite project folder inside the workspace; omit for a single project."
+						},
+						"apply": {
+							"type": "boolean",
+							"description": "Default false: preview only. True requests a native VS Code confirmation and then applies only if approved."
+						},
+						"table": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Existing table alias, or the alias to create for Add Table."
+						},
+						"field": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Column name (case-insensitive for an existing field)."
+						}
+					},
+					"required": [
+						"table",
+						"field"
+					]
+				}
+			},
+			{
+				"name": "irite_dbMoveField",
+				"displayName": "iRite: Move Database Field",
+				"toolReferenceName": "iriteDbMoveField",
+				"canBeReferencedInPrompt": true,
+				"userDescription": "Move a column to a different position in its .rev database table.",
+				"modelDescription": "Move a column to a different position in its .rev database table. Preview by default. Set apply=true only when the user asks to apply the change; VS Code then asks for per-call confirmation.",
+				"tags": [
+					"irite"
+				],
+				"inputSchema": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"rev": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Path to a .rev or iRite project folder inside the workspace; omit for a single project."
+						},
+						"apply": {
+							"type": "boolean",
+							"description": "Default false: preview only. True requests a native VS Code confirmation and then applies only if approved."
+						},
+						"table": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Existing table alias, or the alias to create for Add Table."
+						},
+						"field": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Column name (case-insensitive for an existing field)."
+						},
+						"to": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 999999,
+							"description": "New 1-based position."
+						}
+					},
+					"required": [
+						"table",
+						"field",
+						"to"
+					]
+				}
+			},
+			{
+				"name": "irite_regenIri",
+				"displayName": "iRite: Regenerate iRite Aliases",
+				"toolReferenceName": "iriteRegenIri",
+				"canBeReferencedInPrompt": true,
+				"userDescription": "Explicitly regenerate the sibling .iri from the .rev. Never edits the .rev itself.",
+				"modelDescription": "Explicitly regenerate the sibling .iri from the .rev. Never edits the .rev itself. Preview by default. Set apply=true only when the user asks to apply the change; VS Code then asks for per-call confirmation.",
+				"tags": [
+					"irite"
+				],
+				"inputSchema": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"rev": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 255,
+							"description": "Path to a .rev or iRite project folder inside the workspace; omit for a single project."
+						},
+						"apply": {
+							"type": "boolean",
+							"description": "Default false: preview only. True requests a native VS Code confirmation and then applies only if approved."
+						}
+					}
+				}
+			}
+		]
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run typecheck && node esbuild.mjs --production",
@@ -315,7 +903,7 @@
 	"dependencies": {},
 	"devDependencies": {
 		"@types/node": "^20.11.0",
-		"@types/vscode": "~1.85.0",
+		"@types/vscode": "~1.95.0",
 		"@vscode/vsce": "^3.2.0",
 		"esbuild": "^0.25.0",
 		"typescript": "^5.6.0",
