@@ -9,6 +9,7 @@ import { panelGeometry } from "./panels";
 import type { PanelId } from "./panels";
 import type { ScreenView, WidgetView } from "./screenModel";
 import { widgetBox } from "./widgetBox";
+import { LABEL_BORDER_COLOR, labelAlign, labelHasBorder } from "./labelLayout";
 
 export interface SvgOptions {
 	panel: PanelId;
@@ -42,7 +43,16 @@ function shape(w: WidgetView, width: number, height: number, opts: SvgOptions): 
 		case "numeric": {
 			const size = typeof w.fontSize === "number" && Number.isFinite(w.fontSize) ? Math.round(w.fontSize) : 12;
 			const family = w.typeName === "monolabel" ? ' font-family="monospace"' : "";
-			return `<text x="0" y="${size}" font-size="${size}"${family} fill="${color(w.color, "Black")}">${xmlEscape(w.text ?? (w.typeName === "numeric" ? "123.4" : ""))}</text>`;
+			const align = labelAlign(w);
+			const x = align === "right" ? width : align === "center" ? width / 2 : 0;
+			const anchor = align === "right" ? "end" : align === "center" ? "middle" : "start";
+			const frame = labelHasBorder(w)
+				? `<rect x="0.5" y="0.5" width="${Math.max(0, width - 1)}" height="${Math.max(0, height - 1)}" fill="none" stroke="${LABEL_BORDER_COLOR}"/>`
+				: "";
+			return (
+				`<text x="${x}" y="${height / 2}" text-anchor="${anchor}" dominant-baseline="central" font-size="${size}"${family} fill="${color(w.color, "Black")}">` +
+				`${xmlEscape(w.text ?? (w.typeName === "numeric" ? "123.4" : ""))}</text>${frame}`
+			);
 		}
 		case "bitmap":
 			return (
