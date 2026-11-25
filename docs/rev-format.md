@@ -289,6 +289,27 @@ The widget block:
 
 Exact: a header line `-- Widget Aliases`, then one line per widget that has an alias (types 2, 3, 4, 6, 7, 8, 9, 10, 11; not type 1), written as the alias left-aligned and space-padded to 10 characters, then `: constant integer := `, the id and `;`. Lines end with CRLF; a blank line follows the block. The block is followed (after the other families) by `USBPRN` and `ADVPRN` string constants at file end. Order = Revolution's in-memory order (see section 6; after a load it is ascending id). Example from DOLE: `lbIN      : constant integer := 3;`. A widget with an empty or duplicate alias is emitted as is (no validation).
 
+### `main.iri` generation
+
+The extension reproduces the file with `generateMainIri` (`src/iri/generateIri.ts`) and `iRite: Regenerate main.iri from .rev` (previous file kept as a backup). Output is CRLF, written as UTF-8 without a BOM (`[REA]` `StreamWriter(path)` in `Indicator.GenerateIncludeFile`). `{pad10}` below is the alias left-aligned and space-padded to 10, never truncated. Sources: `[REA]` decoded IL of `rev1280.v308.dll` (`Indicator.GenerateIncludeFile` and each child's import text); `[SAMPLES]` DOLE `main.rev` -> `main.iri`, reproduced byte-for-byte.
+
+Each section is its header line, its lines and one blank line, in this order:
+
+1. `-- Scale Aliases`: `SC.ALIAS#n` ascending where `SC.KIND#n` is not `NONE` (case-insensitive): `{pad10}: constant integer := n;`.
+2. `-- Digital I/O Aliases`: per card `c` (distinct `#c` of `DIO.ALIAS.<bit>#<c>`, ascending): `DIOCRD<c padded to 4>: constant integer := c;`, then bits 1..N (N = number of `DIO.ALIAS.<bit>#c` keys, empty alias allowed) as `{pad10}: constant integer := bit;`, then two blank lines per card.
+3. `-- Analog Output Aliases`: `ALG.ALIAS#n` ascending, no filter, same line format as scales.
+4. `-- Database Type Definitions and Field Aliases`: for each `DB.SCHEMA#n` ascending `type <Alias>Database is database ("<Alias>")`, one line per field (`name` right-aligned to width 10, `: `, type, `;`) and `end database;`; a blank line; then per table `<Alias>_<field padded to 9>: constant integer := <1-based position>;` followed by a blank line; one more blank line. Type codes: 1-3 Integer, 4-5 Real, 6-7 String, 8 DateTime, any other None.
+5. `-- Serial Port Aliases`: `EDP.ALIAS#n` ascending, scale line format.
+6. `-- Ethernet Communication Aliases`: for `TCPS`, `UDPS`, `TCPC1`, `TCPC2`, `TCPC3`: `{pad10 of <K>.NAME or empty}: constant string := "<K>";` (the literal is always the key).
+7. `-- Setpoint Aliases`: `SP.ALIAS#n` ascending where `SP.KIND#n` is not `OFF` (case-insensitive): `{pad10}: constant integer :=n;` (no space before the number).
+8. `-- Widget Aliases`: ascending id, widgets whose type has an alias; alias is the stored one, `sk<id>` for type 9, `line<id>` for type 10; types 1 and 5 and unknown types are skipped.
+
+After the last blank line: `USBPRN    : constant string := "USBPRN";` and `ADVPRN    : constant string := "ADVPRN";`, each ending CRLF, nothing after.
+
+Replacement: identical bytes write nothing; different bytes are copied to a never-overwritten backup (`main.iri.bak`, else timestamped) and replaced through a temp file and rename; a missing file is created without backup; a failed backup leaves the target untouched.
+
+UNCONFIRMED: the alias token of types 2, 8 and 11 is not checked against a sample (DOLE has none of types 2 and 8); the number of DIO bits per card type (the generator uses the number of `DIO.ALIAS` keys found); the header texts are resources taken from DOLE `main.iri`, not from the DLL; Revolution v310 was not compared.
+
 ## 6. Paint order, line order, persisted z-order
 
 - **No z-order field exists** in any widget layout. `[IL]` all `WidgetCommandOutput`, no member named for z-order/layer/bring-to-front in `Display.*`.

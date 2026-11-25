@@ -10,6 +10,7 @@ Code. It supports:
 -   Compiling
 -   Deployment to Indicator
 -   Opt-in database schema editing with backup and generated `main.iri` hints
+-   **iRite: Regenerate main.iri from .rev** (explorer menu on `.rev`, or the button after saving in the editors): regenerates `main.iri` from the `.rev` and keeps a backup
 
 Installation
 ============
@@ -142,10 +143,10 @@ Right-click a `.rev` and choose **iRite: Edit Screens** (or "Open With..." >
 -   **Delete** (Delete key or button): before a widget is deleted or its alias
     renamed, the editor lists the code references (reuse of the preview's
     reference index) and warns when the alias is used in code.
--   **`main.iri` hint:** the extension never edits `main.iri`. After adding,
+-   **`main.iri` hint:** saving never edits `main.iri`. After adding,
     renaming or deleting widgets the panel shows the exact constant lines to add
-    or update (the format Revolution generates), or regenerate `main.iri` in
-    Revolution.
+    or update, and the post-save message offers **Regenerate main.iri** (command
+    `iRite: Regenerate main.iri from .rev`; the previous file is kept as a backup).
 -   Drag a widget, use the arrow keys (1 px; **Shift**: one grid step), drag the
     resize handles, or type x / y / w / h. **Snap** and the grid size
     (`irite.editor.snap`, `irite.editor.gridSize`) are in the toolbar.
@@ -227,8 +228,9 @@ the recovery warning remains visible, and the editor does not retry the write.
 Watcher refresh is deferred while editing or while other pending work blocks it.
 Cancelling confirmation preserves the pending draft, including when switching
 back to the diagram.
-The editor never writes `main.iri`: after saving, regenerate it in Revolution
-or use the displayed declarations and constants. Renames, deletions and field
+Saving never writes `main.iri`: afterwards use the **Regenerate main.iri** button
+or `iRite: Regenerate main.iri from .rev` (the previous file is kept as a backup)
+or the displayed declarations and constants. Renames, deletions and field
 order changes can break existing code and DB access routines; review both.
 Designer type defaults and size controls do not establish device acceptance.
 The editor enforces v308 designer limits for new or changed names, field and table counts, and record counts. It estimates record, table and total bytes from stored sizes and warns above Revolution's 460,000,000-byte row-color threshold; this is not a proven indicator hard limit. Firmware enforcement, overhead and any per-table memory cap remain unconfirmed. Opening an edited file in Revolution and loading it on an indicator remain unverified; check both before production and keep the backup.

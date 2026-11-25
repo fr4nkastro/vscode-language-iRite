@@ -587,7 +587,7 @@ function renderHint(h: IriHint | undefined): string {
 		...h.change.flatMap((c) => [`- ${c.old}`, `+ ${c.new}`]),
 		...h.remove.map((l) => `- ${l}`),
 	];
-	return `<div id="irihint"><strong>main.iri</strong> (never edited by this extension; Revolution regenerates it). In the "-- Widget Aliases" block: + add / - remove or replace.<pre>${escapeHtml(lines.join("\n"))}</pre></div>`;
+	return `<div id="irihint"><strong>main.iri</strong> (never edited while you edit; run "iRite: Regenerate main.iri from .rev" after saving). In the "-- Widget Aliases" block: + add / - remove or replace.<pre>${escapeHtml(lines.join("\n"))}</pre></div>`;
 }
 
 function catalogForPage(): Record<number, unknown> {

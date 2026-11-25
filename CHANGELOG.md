@@ -2,6 +2,7 @@ ChangeLog
 =========
 
 #### Unreleased
+- New **iRite: Regenerate main.iri from .rev** (explorer menu on `.rev`, and a button after saving in the screen and database schema editors) regenerates `main.iri` the way Revolution does, byte-identical on the DOLE sample, keeping a backup of the previous file (never overwritten); an identical file is left untouched. Not verified against Revolution v310.
 - Fix (#19): label and monospace label widgets now preview their **justification** (Left / Right / Center) and **border** (Fixed single draws a 1 px frame, None draws none) in the preview, the screen editor and `rev-cli render`; label text is always vertically centered. Border color (black) and placement inside the box are unconfirmed on a 1280.
 - Database schema edits enforce v308 designer name and count limits and show estimated sizes against its warning threshold; indicator limits and overhead remain unconfirmed.
 - Database diagrams, Mermaid export and schema editing now show Revolution field type names; changing a type applies its designer default size. Numeric codes remain in `.rev`, unknown types stay read-only, and unchanged legacy sizes are preserved. Designer rules do not establish indicator acceptance; validate in Revolution and on a test indicator.

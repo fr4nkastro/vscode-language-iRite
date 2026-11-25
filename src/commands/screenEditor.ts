@@ -43,6 +43,7 @@ import type { WidgetView } from "../preview/screenModel";
 import { parseRev } from "../rev";
 import type { RevModel } from "../rev";
 import { locateRev } from "./previewScreens";
+import { offerRegenerate } from "./regenerateIri";
 
 const VIEW_TYPE = "irite.screenEditor";
 
@@ -52,7 +53,7 @@ const WARNING =
 const WARNING_DETAIL =
 	"Before writing, the current file is copied next to it (main.rev.bak, or a timestamped name when that exists). " +
 	"Only the WDGT lines of the edited, added or deleted widgets and the ConfigHash line change; every other byte stays as it is. " +
-	"main.iri is never edited: add, update or remove the alias constants it lists. " +
+	"main.iri is not changed by saving: run \"iRite: Regenerate main.iri from .rev\" afterwards (a backup of main.iri is kept). " +
 	"Open the saved file in Revolution before loading it on an indicator, and keep the backup until you have.";
 
 class RevDocument implements vscode.CustomDocument {
@@ -434,8 +435,8 @@ class ScreenEditorProvider implements vscode.CustomEditorProvider<RevDocument> {
 		doc.bytes = next;
 		const parts = plan ? [`${plan.changed.length} edited`, `${plan.added.length} added`, `${plan.removed.length} removed`] : [];
 		const h = this.hint(doc);
-		const iri = h.add.length + h.change.length + h.remove.length > 0 ? " main.iri needs constant changes: see the panel of the editor." : "";
-		void vscode.window.showInformationMessage(`iRite: saved ${path.basename(target)} (widget lines: ${parts.join(", ")}). Backup: ${path.basename(backup)}. ConfigHash recomputed.${iri}`);
+		const iri = h.add.length + h.change.length + h.remove.length > 0 ? " main.iri needs constant changes: regenerate it (button below) or see the panel of the editor." : "";
+		offerRegenerate(`iRite: saved ${path.basename(target)} (widget lines: ${parts.join(", ")}). Backup: ${path.basename(backup)}. ConfigHash recomputed.${iri}`, target);
 	}
 
 	async saveCustomDocumentAs(doc: RevDocument, destination: vscode.Uri): Promise<void> {

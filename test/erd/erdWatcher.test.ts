@@ -199,7 +199,7 @@ it('posts readback state and backup name on success, then refreshes after editin
  await panel.receive({type:'erd-edit-request', generation, requestId:2, message:{type:'save'}});
  expect(mocks.disk.toString()).toContain('DB.ALIAS#1=Changed');
  expect(panel.webview.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({type:'erd-edit-state', requestId:2, fragment:expect.stringContaining('Changed'), readonly:expect.stringContaining('Changed')}));
- expect(vi.mocked(vscode.window.showInformationMessage)).toHaveBeenCalledWith(expect.stringContaining(mocks.backups[0].split(/[\\/]/).pop()!));
+ expect(vi.mocked(vscode.window.showInformationMessage)).toHaveBeenCalledWith(expect.stringContaining(mocks.backups[0].split(/[\\/]/).pop()!), 'Regenerate main.iri');
  expect(panel.webview.html).toBe(initial);
  await panel.receive({type:'erd-edit-mode', generation, editing:false});
  expect(panel.webview.html).not.toBe(initial);
