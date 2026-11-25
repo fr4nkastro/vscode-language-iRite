@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<Indicator>
+  <Revision value="1.0.0.1" />
+  <IndicatorModel value="1280" />
+  <IndicatorVersion value="2.06-2.07" />
+  <ChildAssembly value="rev1280.test.dll" />
+  <ConfigHash value="139 118 83 203 123 92 242 100 77 119 62 242 232 251 58 42 207 85 88 236 " />
+  <CODFile value="C:\Synthetic\Project\main.cod" />
+  <Config>SC.ALIAS#1=SCALE_1
+SC.CAPACITY#1=600.0
+SP.ALIAS#1=SP_ONE
+SP.ALIAS#2=
+EDP.ALIAS#1=Port1
+DIO.ALIAS.1#0=BIT1
+DIO.ALIAS.2#1=BIT2
+SKT.TEXT#1=a &lt;NL&gt; b &amp; &quot;c&quot; &apos;d&apos; &#65;&#x42;
+PLAIN=yes
+DB.SCHEMA#1=1000,0,Id,7,15,Weight,4,4,Count,2,2
+DB.ALIAS#1=Inbound
+DB.SCHEMA#2=100,0,Code,6,10
+DB.ALIAS#2=Product
+DB.SCHEMA#3=50,0,Tag,6,8,Mystery,9,3
+DB.ALIAS#3=Legacy
+WDGT#1=7,112,242,260,60,1,2,0,buttonG.png,4,imIn
+WDGT#2=7,704,5,72,72,1,1,0,local://9.png,2,btnExt
+WDGT#3=4,170,160,221,28,Hello, world,1,2,18,#BB0000,lbl3,4,0,0,1,7
+WDGT#4=4,10,20,100,30,Plain &lt;NL&gt;,1,1,12,Black,lbl4,2,0,0,1,3
+WDGT#5=3,618,106,161,62,2,1,2,1,Black,barSet5,2,0,0,1,8
+WDGT#6=10,9,253,675,1,1,1,Silver,2
+WDGT#7=1,119,2,6,1,9,#393939,#F0EEEE
+WDGT#8=6,46,90,4,1,3,sym8,4,0,2,1,4
+WDGT#9=99,1,2,3
+WDGT#10=4,1,2
+</Config>
+  <CustomData>
+    <CustomHash value="9 8 7 " />
+    <Printers>CUSTOMCOLORS=1|2|3
+PRINTER#1=x</Printers>
+  </CustomData>
+</Indicator>

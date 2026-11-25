@@ -2,6 +2,7 @@ ChangeLog
 =========
 
 #### Unreleased
+- `rev-cli db add-table | rm-table | add-field | set-field | rm-field | move-field` edit the `.rev` database schema from the command line with the database schema editor's own validation (names, reserved words, v308 limits, sizes, default size on type change) and save plan. Same safety rules as the widget commands (dry-run by default, `--write`, `--expect-hash`, backup, atomic replace, `ConfigHash` recomputed, readback) and exit codes. Types by Revolution name or code 1..8; unknown type codes stay read-only. `add-table` needs `--field Name:type[:size]` because a table must have at least one field. `main.iri` is never written; `warnings` say its database types and column-index constants change and that renamed, deleted or reordered fields can break code. Unverified in Revolution and on a 1280.
 - `rev-cli` gets its first write commands, `widget set`, `widget add` and `widget rm`, built on the screen editor's validation and save plan. They are **dry-run by default**; `--write` backs up the file first, replaces it atomically, recomputes `ConfigHash` and validates the readback, and `--expect-hash <sha256>` refuses a stale file. `widget rm` refuses a widget still referenced in code unless `--force`. `main.iri` is never written (the constant lines that change are reported in `warnings`). Results are JSON with `fileHash`, `changes`, `warnings`; exit codes 0 ok, 1 unreadable, 2 usage, 3 refused, 4 stale, 5 I/O. Edited files remain unverified in Revolution and on a 1280.
 
 #### 2.13.0

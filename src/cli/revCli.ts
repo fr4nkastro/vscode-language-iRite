@@ -18,6 +18,7 @@ import type { ScreenView } from "../preview/screenModel";
 import { findOverlaps, isBackdrop, outOfBounds, widgetBox } from "../preview/widgetBox";
 import { parseRev } from "../rev";
 import { widgetTypeDef } from "../rev/widgetCatalog";
+import { runDbCommand } from "./dbCommands";
 import { runWidgetCommand } from "./widgetCommands";
 import type { WriteFs } from "./writeCore";
 
@@ -46,6 +47,14 @@ export const USAGE = `Usage: rev-cli <command> <file.rev> [options]
   widget set <rev> <id> <field>=<value>...            Change widget fields (catalog names, editable ones only)
   widget add <rev> <type> --screen n [field=value...] Add a widget (lowest free id, catalog defaults, default alias)
   widget rm  <rev> <id> [--force]                     Remove a widget (refused when code still references it)
+  db add-table <rev> <Name> [--records n] [--field Name:type[:size]...]   Add a table (it needs >= 1 field: use --field)
+  db rm-table  <rev> <Name>                           Remove a table
+  db add-field <rev> <Table> <Field> <type> [--size n] [--at pos]   Add a field (type: Revolution name or code 1..8)
+  db set-field <rev> <Table> <Field> [name=<new>] [type=<t>] [size=<n>]   Rename, retype (size resets to the type default) or resize
+  db rm-field  <rev> <Table> <Field>                  Remove a field
+  db move-field <rev> <Table> <Field> <pos>           Move a field to position pos (1-based)
+Database types: 1 Byte, 2 Short Integer, 3 Long Integer, 4 Single Precision Real, 5 Double Precision Real,
+6 Fixed Length String, 7 Variable Length String, 8 DateTime (fields of an unknown type code stay read-only).
 Write commands are DRY-RUN by default and print JSON { ok, command, file, dryRun, fileHash, newHash?, backup?,
 changes, warnings }. Options: --write applies (backup first, atomic replace, ConfigHash recomputed, readback
 validated); --dry-run (default); --expect-hash <sha256 hex of the file> refuses a stale file. main.iri is never
@@ -145,6 +154,9 @@ export function runCli(argv: string[], io: CliIo): CliResult {
 	}
 	if (argv[0] === "widget") {
 		return runWidgetCommand(argv, io);
+	}
+	if (argv[0] === "db") {
+		return runDbCommand(argv, io);
 	}
 	const args = parseArgs(argv);
 	if (typeof args === "string") {

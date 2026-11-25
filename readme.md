@@ -202,7 +202,7 @@ Right-click a `.rev` and choose **iRite: Edit Screens** (or "Open With..." >
 #### Headless CLI (for agents and scripts)
 
 `dist/rev-cli.js` (bundled with the extension, no dependencies). The read
-commands never modify the file; the `widget` commands write only with `--write`:
+commands never modify the file; the `widget` and `db` commands write only with `--write`:
 
 ```
 node rev-cli.js screens <file.rev>
@@ -236,6 +236,24 @@ fields), `rm` removes a widget and is refused while code still references its
 alias unless `--force` (references come from `main.src` in the `.rev` folder;
 without it a warning says they were not checked).
 
+**Database write commands** use the database schema editor's own pure logic
+(model, validation, save plan): table and field names (max 8 ASCII characters,
+iRite identifiers, no reserved words, no duplicates), v308 designer limits (128
+tables, 100 fields per table, up to 2000000 records, string sizes 1..255, fixed
+sizes per type) and the default size when a type changes. `<type>` is the
+Revolution name (case-insensitive: `Long Integer`, `Variable Length String`, ...)
+or the numeric code 1..8 (1 Byte, 2 Short Integer, 3 Long Integer, 4 Single
+Precision Real, 5 Double Precision Real, 6 Fixed Length String, 7 Variable
+Length String, 8 DateTime). Tables and fields are matched by name
+(case-insensitive); positions are 1-based. Fields of an unknown type code stay
+read-only (`set-field` is refused), exactly as in the editor. A table needs at
+least one field, so `add-table` takes `--field Name:type[:size]` (repeatable;
+`--records` defaults to 1). Only `DB.SCHEMA`/`DB.ALIAS` lines and `ConfigHash` change.
+`main.iri` is never written: `warnings` say its database types and
+`<Table>_<Field>` constants change (the new text is in `iriHint`) and that renamed,
+deleted or reordered fields can break code and DB access routines; regenerate
+it with `regen-iri` (planned) or from the extension.
+
 Safety rules of every write command:
 
 -   **Dry-run by default**: without `--write` nothing is touched; the JSON
@@ -254,7 +272,7 @@ Safety rules of every write command:
     acceptance of an edited `.rev` stays unverified.
 
 JSON on stdout: `{ "ok", "command", "file", "dryRun", "fileHash", "newHash"?,
-"backup"?, "changes": [{ "op": "set|add|rm", "id", ... }], "warnings": [] }`;
+"backup"?, "changes": [{ "op": "set|add|rm" (widgets) or "addTable|rmTable|addField|setField|rmField|moveField" (db), ... }], "warnings": [] }`;
 errors are `{ "ok": false, "command", "file", "fileHash"?, "error", ... }`
 (a refused `widget rm` also lists `references`).
 
