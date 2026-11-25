@@ -1,0 +1,30 @@
+-- Partially implemented table module used by the DB access tests.
+function dbTransCreate(iId: integer; iTicket: integer; rInWeight: real; rNetW: real): SysCode;
+    dbRecord: TransDatabase;
+    sysError: SysCode;
+begin
+    dbRecord.Id := iId;
+    dbRecord.Ticket := iTicket;
+    dbRecord.InWeight := rInWeight;
+    dbRecord.NetW := rNetW;
+    sysError := dbRecord.Add;
+    return sysError;
+end;
+
+function dbTransGetInWeight(iId: integer; var vValue: real): SysCode;
+begin
+    -- TODO(irite-db): pending implementation
+    return SysInvalidRequest;
+end;
+
+function DBTRANSDELETE(iId: integer): SysCode;
+    dbRecord: TransDatabase;
+    sysError: SysCode;
+begin
+    dbRecord.Id := iId;
+    sysError := dbRecord.FindFirst(Trans_Id);
+    if sysError = SysOk then
+        sysError := dbRecord.Delete;
+    end if;
+    return sysError;
+end;

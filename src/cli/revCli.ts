@@ -19,6 +19,8 @@ import { findOverlaps, isBackdrop, outOfBounds, widgetBox } from "../preview/wid
 import { parseRev } from "../rev";
 import { widgetTypeDef } from "../rev/widgetCatalog";
 import { runDbCommand } from "./dbCommands";
+import { runDiagnose } from "./diagnose";
+import { runRegenIri } from "./regenCommand";
 import { runWidgetCommand } from "./widgetCommands";
 import type { WriteFs } from "./writeCore";
 
@@ -53,16 +55,20 @@ export const USAGE = `Usage: rev-cli <command> <file.rev> [options]
   db set-field <rev> <Table> <Field> [name=<new>] [type=<t>] [size=<n>]   Rename, retype (size resets to the type default) or resize
   db rm-field  <rev> <Table> <Field>                  Remove a field
   db move-field <rev> <Table> <Field> <pos>           Move a field to position pos (1-based)
+  regen-iri <rev> [--write] [--expect-hash h]         Regenerate <rev basename>.iri (main.iri) from the .rev: dry-run reports create / replace / unchanged
+                                                      with a line diff; --write backs up (main.iri.bak) and replaces. --expect-hash guards the .iri bytes.
+  diagnose <project-dir|file.rev|main.src>            Read-only JSON of the Problems rules: irite-sfc, irite-db-access, widgets (overlap, out-of-bounds)
 Database types: 1 Byte, 2 Short Integer, 3 Long Integer, 4 Single Precision Real, 5 Double Precision Real,
 6 Fixed Length String, 7 Variable Length String, 8 DateTime (fields of an unknown type code stay read-only).
 Write commands are DRY-RUN by default and print JSON { ok, command, file, dryRun, fileHash, newHash?, backup?,
 changes, warnings }. Options: --write applies (backup first, atomic replace, ConfigHash recomputed, readback
 validated); --dry-run (default); --expect-hash <sha256 hex of the file> refuses a stale file. main.iri is never
-written; the constant lines that change are listed in "warnings". Errors are JSON { ok:false, error, ... }.
+written by widget/db commands; the constant lines that change are listed in "warnings". regen-iri is the explicit way to regenerate it. Errors are JSON { ok:false, error, ... }.
 Exit codes: 0 ok, 1 file not readable, 2 usage, 3 validation/refused, 4 stale file, 5 write/backup/readback failure.
 Each widget lists "props": its named properties from the widget catalog (type name in "typeName").
 An explicit --firmware-images directory must contain a usable image cache.
-screens, widgets and render are read-only: they never modify the .rev.
+screens, widgets, render and diagnose are read-only. regen-iri never writes the .rev, and writes the .iri only with --write.
+diagnose prints { ok, command, project, rev, diagnostics: [{ source, severity, file, line?, message, code? }], counts } and exits 0 even when it finds problems.
 `;
 
 const MAX_IMAGE_BYTES = 2_000_000;
@@ -157,6 +163,12 @@ export function runCli(argv: string[], io: CliIo): CliResult {
 	}
 	if (argv[0] === "db") {
 		return runDbCommand(argv, io);
+	}
+	if (argv[0] === "regen-iri") {
+		return runRegenIri(argv, io);
+	}
+	if (argv[0] === "diagnose") {
+		return runDiagnose(argv, io);
 	}
 	const args = parseArgs(argv);
 	if (typeof args === "string") {

@@ -211,6 +211,8 @@ node rev-cli.js render  <file.rev> --screen n [--panel 7|12] [--out screen.svg] 
 node rev-cli.js widget set <file.rev> <id> <field>=<value>... [--write] [--expect-hash <sha256>]
 node rev-cli.js widget add <file.rev> <type> --screen n [field=value...] [--write] [--expect-hash <sha256>]
 node rev-cli.js widget rm  <file.rev> <id> [--force] [--write] [--expect-hash <sha256>]
+node rev-cli.js regen-iri <file.rev> [--write] [--expect-hash <sha256>]
+node rev-cli.js diagnose <project-dir|file.rev|main.src>
 ```
 
 `screens` and `widgets` print JSON (type name, named properties `props`, boxes,
@@ -252,7 +254,32 @@ least one field, so `add-table` takes `--field Name:type[:size]` (repeatable;
 `main.iri` is never written: `warnings` say its database types and
 `<Table>_<Field>` constants change (the new text is in `iriHint`) and that renamed,
 deleted or reordered fields can break code and DB access routines; regenerate
-it with `regen-iri` (planned) or from the extension.
+it with `regen-iri` or from the extension.
+
+**`regen-iri <file.rev>`** regenerates `<rev basename>.iri` (`main.iri`) with the
+same generator as **iRite: Regenerate main.iri from .rev**. It is a dry-run by
+default and reports `changes` as `unchanged`, `create` (missing target) or
+`replace`, with `added`/`removed` line counts and a sample of the changed lines
+(`addedLines`, `removedLines`). `--write` keeps the extension's rules: the previous
+file is copied first to `main.iri.bak` (a timestamped name when it exists, never
+overwritten), a failed backup leaves the target untouched, identical content
+writes nothing and a missing target is created without a backup. The `.rev` is
+never written. `fileHash` and `--expect-hash` refer to the bytes of the `.iri`
+target (SHA-256 hex; `fileHash` is `null` when it does not exist, which a
+`--expect-hash` refuses with exit 4). Result:
+`{ ok, command, file, dryRun, fileHash, newHash?, backup?, changes, warnings }`.
+Not verified against Revolution v310.
+
+**`diagnose <project-dir|file.rev|main.src>`** is read-only and prints the rules
+that populate the Problems view, with the extension's default settings, as JSON
+`{ ok, command, project, rev, diagnostics: [{ source, severity, file, line?,
+message, code? }], counts: { total, bySource, bySeverity } }`. `source` is
+`irite-sfc` (Petri FSM checks), `irite-db-access` (missing or pending per-table
+routines; severity `warning`) or `widgets` (`overlap` and `out-of-bounds`, as in
+`widgets`; `line` is the `WDGT` line of the `.rev`). The project is the
+`main.src` of the folder (or next to the `.rev`) and the `.rev` is the `main.rev`
+beside it; without `main.src` only widget diagnostics are produced. It exits 0
+even when it reports diagnostics, 1 when nothing is readable, 2 on usage errors.
 
 Safety rules of every write command:
 

@@ -8,7 +8,7 @@ import {
 	applyScaffold,
 	buildPendingJson,
 	checkDbAccess,
-	formatTableMessage,
+	tableDiagnostics,
 	type DbAccessOptions,
 	type DbAccessReport,
 	type PendingJson,
@@ -94,19 +94,15 @@ class DbAccessService implements vscode.CodeActionProvider {
 				console.error("iRite DB access check failed", e);
 				continue;
 			}
-			for (const t of report.tables) {
-				const message = formatTableMessage(t);
-				if (message === "") {
-					continue;
-				}
+			for (const t of tableDiagnostics(report)) {
 				const line = Math.max(0, t.line - 1);
-				const d = new vscode.Diagnostic(new vscode.Range(line, 0, line, 1000), message, settings.severity);
+				const d = new vscode.Diagnostic(new vscode.Range(line, 0, line, 1000), t.message, settings.severity);
 				d.source = SOURCE;
 				d.code = "irite-db-access";
 				const list = byFile.get(t.file) ?? [];
 				list.push(d);
 				byFile.set(t.file, list);
-				this.targets.set(this.key(t.file, line), { mainSrc, table: t.table, missing: t.items.filter((i) => i.status === "missing").length });
+				this.targets.set(this.key(t.file, line), { mainSrc, table: t.table, missing: t.missing });
 			}
 		}
 		for (const [file, diags] of byFile) {

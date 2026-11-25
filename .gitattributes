@@ -1,3 +1,4 @@
 test/fixtures/editor/** -text
 test/fixtures/rev/hashed.rev -text
 test/fixtures/rev/db.rev -text
+test/fixtures/diagnose/** -text
